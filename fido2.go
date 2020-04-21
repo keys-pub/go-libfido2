@@ -3,8 +3,10 @@ package fido2
 /*
 #cgo darwin LDFLAGS: -L/usr/local/lib -lfido2
 #cgo darwin CFLAGS: -I/usr/local/include/fido -I/usr/local/opt/openssl/include
-#cgo windows CFLAGS: -I./libfido2/output/pkg/include
+#cgo linux LDFLAGS: -L/usr/lib/x86_64-linux-gnu -lfido2
+#cgo linux CFLAGS: -I/usr/include/fido
 #cgo windows LDFLAGS: -L./libfido2/output/pkg/Win64/Release/v142/dynamic -lfido2
+#cgo windows CFLAGS: -I./libfido2/output/pkg/include
 #include <fido.h>
 #include <stdlib.h>
 */
