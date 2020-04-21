@@ -4,7 +4,7 @@ import (
 	pkglog "log"
 )
 
-var logger = NewLogger(ErrLevel)
+var logger = NewLogger(DebugLevel)
 
 // SetLogger sets logger for the package.
 func SetLogger(l Logger) {
