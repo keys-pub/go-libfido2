@@ -1,3 +1,3 @@
-# go-fido2
+# go-libfido2
 
 Go wrapper for libfido2.
