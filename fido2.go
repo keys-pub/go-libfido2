@@ -666,6 +666,9 @@ var ErrInvalidCommand = errors.New("invalid command")
 // ErrInvalidCredential if credential is invalid.
 var ErrInvalidCredential = errors.New("invalid credential")
 
+// ErrUnsupportedOption if option is unsupported.
+var ErrUnsupportedOption = errors.New("unsupported option")
+
 func errFromCode(code C.int) error {
 	switch code {
 	case C.FIDO_ERR_TX:
@@ -686,6 +689,8 @@ func errFromCode(code C.int) error {
 		return ErrInvalidCommand
 	case C.FIDO_ERR_INVALID_CREDENTIAL:
 		return ErrInvalidCredential
+	case C.FIDO_ERR_UNSUPPORTED_OPTION:
+		return ErrUnsupportedOption
 	default:
 		return ErrCode{code: int(code)}
 	}
