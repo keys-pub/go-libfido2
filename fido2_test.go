@@ -82,7 +82,8 @@ func ExampleMakeCredential() {
 			DisplayName: "Gabriel",
 		},
 		fido2.ES256, // Algorithm
-		"",          // Pin
+		nil,
+		"", // Pin
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -121,6 +122,7 @@ func ExampleGetAssertion() {
 
 	cdh := bytes.Repeat([]byte{0x01}, 32)
 	userID := bytes.Repeat([]byte{0x02}, 32)
+	salt := bytes.Repeat([]byte{0x03}, 32)
 
 	cred, err := fido2.MakeCredential(
 		device,
@@ -133,7 +135,11 @@ func ExampleGetAssertion() {
 			Name: "gabriel",
 		},
 		fido2.ES256, // Algorithm
-		"",          // Pin
+		&fido2.MakeCredentialOpts{
+			Extensions: []fido2.Extension{fido2.HMACSecret},
+			RK:         fido2.True,
+		},
+		"", // Pin
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -150,7 +156,12 @@ func ExampleGetAssertion() {
 		device,
 		"keys.pub",
 		cdh,
-		[][]byte{cred.ID},
+		cred.ID,
+		&fido2.GetAssertionOpts{
+			Extensions: []fido2.Extension{fido2.HMACSecret},
+			UP:         fido2.True,
+			HMACSalt:   salt,
+		},
 		"", // Pin
 	)
 	if err != nil {
@@ -167,37 +178,36 @@ func ExampleGetAssertion() {
 	//
 }
 
-func ExampleCredentialsInfo() {
-	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
+// func ExampleCredentialsInfo() {
+// 	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
 
-	detected, err := fido2.DetectDevices(100)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if len(detected) == 0 {
-		log.Println("No devices")
-		return
-	}
+// 	detected, err := fido2.DetectDevices(100)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	if len(detected) == 0 {
+// 		log.Println("No devices")
+// 		return
+// 	}
 
-	log.Printf("Using device: %+v\n", detected[0])
-	path := detected[0].Path
-	device, err := fido2.NewDevice(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer device.Close()
+// 	log.Printf("Using device: %+v\n", detected[0])
+// 	path := detected[0].Path
+// 	device, err := fido2.NewDevice(path)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	defer device.Close()
 
-	info, err := fido2.Credentials(device, "")
-	if err != nil {
-		log.Fatal(err)
-	}
+// 	info, err := fido2.Credentials(device, "")
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	log.Printf("Info: %+v\n", info)
+// 	log.Printf("Info: %+v\n", info)
 
-	// Output:
-	//
-
-}
+// 	// Output:
+// 	//
+// }
 
 func ExampleReset() {
 	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))

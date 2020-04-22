@@ -42,8 +42,8 @@ type HIDInfo struct {
 	Flags    uint8
 }
 
-// Option ...
-type Option struct {
+// InfoOpt ...
+type InfoOpt struct {
 	Name  string
 	Value bool
 }
@@ -54,7 +54,7 @@ type Info struct {
 	Protocols  []byte
 	Extensions []string
 	Versions   []string
-	Options    []Option
+	Options    []InfoOpt
 }
 
 // DeviceType is latest type the device supports.
@@ -146,7 +146,7 @@ func GetInfo(d *Device) (*Info, error) {
 	var protocols []byte
 	var extensions []string
 	var versions []string
-	var options []Option
+	var options []InfoOpt
 
 	cAAGUIDLen := C.fido_cbor_info_aaguid_len(info)
 	cAAGUIDPtr := C.fido_cbor_info_aaguid_ptr(info)
@@ -179,9 +179,9 @@ func GetInfo(d *Device) (*Info, error) {
 		names := goStrings(C.int(cOptionsLen), cOptionsNamePtr)
 		values := goBools(C.int(cOptionsLen), cOptionsValuePtr)
 
-		options = make([]Option, 0, len(names))
+		options = make([]InfoOpt, 0, len(names))
 		for i, name := range names {
-			options = append(options, Option{Name: name, Value: values[i]})
+			options = append(options, InfoOpt{Name: name, Value: values[i]})
 		}
 	}
 
@@ -210,7 +210,6 @@ type User struct {
 
 // Credential ...
 type Credential struct {
-	Format         string
 	AuthData       []byte
 	ClientDataHash []byte
 	ID             []byte
@@ -218,6 +217,7 @@ type Credential struct {
 	PubKey         []byte
 	Cert           []byte
 	Sig            []byte
+	Format         string
 }
 
 // COSEAlgorithm ...
@@ -235,6 +235,71 @@ const (
 	RS256 COSEAlgorithm = -257
 )
 
+func (c COSEAlgorithm) String() string {
+	switch c {
+	case ES256:
+		return "es256"
+	case EDDSA:
+		return "eddsa"
+	case RS256:
+		return "rs256"
+	default:
+		return fmt.Sprintf("%d", c)
+	}
+}
+
+// Extension ...
+type Extension string
+
+const (
+	// HMACSecret is HMAC secret extension.
+	// https://fidoalliance.org/specs/fido-v2.0-rd-20180702/fido-client-to-authenticator-protocol-v2.0-rd-20180702.html#sctn-hmac-secret-extension
+	HMACSecret Extension = "hmac-secret"
+)
+
+func extensionsInt(extensions []Extension) int {
+	exts := 0
+	for _, extension := range extensions {
+		switch extension {
+		case HMACSecret:
+			exts |= int(C.FIDO_EXT_HMAC_SECRET)
+		}
+	}
+	return exts
+}
+
+// Opt ...
+type Opt string
+
+const (
+	// Default is device default (omitted).
+	Default Opt = "default"
+	// True is enabled/yes/true option.
+	True Opt = "true"
+	// False is disabled/no/false option.
+	False Opt = "false"
+)
+
+// MakeCredentialOpts ...
+type MakeCredentialOpts struct {
+	Extensions []Extension
+	RK         Opt
+	UV         Opt
+}
+
+func cOpt(o Opt) C.fido_opt_t {
+	switch o {
+	case Default, "":
+		return C.FIDO_OPT_OMIT
+	case True:
+		return C.FIDO_OPT_TRUE
+	case False:
+		return C.FIDO_OPT_FALSE
+	default:
+		panic("invalid opt")
+	}
+}
+
 // MakeCredential represents authenticatorMakeCredential (0x01).
 // https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorMakeCredential
 func MakeCredential(
@@ -243,21 +308,43 @@ func MakeCredential(
 	rp RP,
 	user User,
 	typ COSEAlgorithm,
+	opts *MakeCredentialOpts,
 	pin string) (*Credential, error) {
+
+	if opts == nil {
+		opts = &MakeCredentialOpts{}
+	}
 
 	cCred := C.fido_cred_new()
 	defer C.fido_cred_free(&cCred)
-	C.fido_cred_set_clientdata_hash(cCred, cBytes(clientDataHash), cLen(clientDataHash))
-	C.fido_cred_set_rp(cCred, cString(rp.ID), cString(rp.Name))
-	C.fido_cred_set_user(cCred, cBytes(user.ID), cLen(user.ID), cString(user.Name), cString(user.DisplayName), cString(user.Icon))
-	C.fido_cred_set_type(cCred, C.int(typ))
-	// C.fido_cred_set_extensions()
+	if cErr := C.fido_cred_set_clientdata_hash(cCred, cBytes(clientDataHash), cLen(clientDataHash)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to set client data hash")
+	}
+	if cErr := C.fido_cred_set_rp(cCred, cString(rp.ID), cString(rp.Name)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to set rp")
+	}
+	if cErr := C.fido_cred_set_user(cCred, cBytes(user.ID), cLen(user.ID), cString(user.Name), cString(user.DisplayName), cString(user.Icon)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to set user")
+	}
+	if cErr := C.fido_cred_set_type(cCred, C.int(typ)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to set type")
+	}
+	if cErr := C.fido_cred_set_rk(cCred, cOpt(opts.RK)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to set rk")
+	}
+	if cErr := C.fido_cred_set_uv(cCred, cOpt(opts.UV)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to set uv")
+	}
+
+	if exts := extensionsInt(opts.Extensions); exts > 0 {
+		if cErr := C.fido_cred_set_extensions(cCred, C.int(exts)); cErr != C.FIDO_OK {
+			return nil, errors.Wrap(errFromCode(cErr), "failed to set extensions")
+		}
+	}
 
 	if cErr := C.fido_dev_make_cred(d.dev, cCred, cString(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to make credential")
 	}
-
-	cFormat := C.fido_cred_fmt(cCred)
 
 	cAuthDataLen := C.fido_cred_authdata_len(cCred)
 	cAuthDataPtr := C.fido_cred_authdata_ptr(cCred)
@@ -271,6 +358,7 @@ func MakeCredential(
 	cIDPtr := C.fido_cred_id_ptr(cCred)
 	id := C.GoBytes(unsafe.Pointer(cIDPtr), C.int(cIDLen))
 
+	cFormat := C.fido_cred_fmt(cCred)
 	typOut := COSEAlgorithm(C.fido_cred_type(cCred))
 
 	cPubKeyLen := C.fido_cred_pubkey_len(cCred)
@@ -286,7 +374,6 @@ func MakeCredential(
 	sig := C.GoBytes(unsafe.Pointer(cSigPtr), C.int(cSigLen))
 
 	cred := &Credential{
-		Format:         C.GoString(cFormat),
 		AuthData:       authData,
 		ClientDataHash: clientDataHashOut,
 		ID:             id,
@@ -294,6 +381,7 @@ func MakeCredential(
 		PubKey:         pubKey,
 		Cert:           cert,
 		Sig:            sig,
+		Format:         C.GoString(cFormat),
 	}
 
 	return cred, nil
@@ -329,32 +417,32 @@ func RetryCount(d *Device) (int, error) {
 	return int(retryCount), nil
 }
 
-// CredentialsInfo ...
-type CredentialsInfo struct {
-	RKExisting  int64
-	RKRemaining int64
-}
+// // CredentialsInfo ...
+// type CredentialsInfo struct {
+// 	RKExisting  int64
+// 	RKRemaining int64
+// }
 
-// Credentials ...
-func Credentials(d *Device, pin string) (*CredentialsInfo, error) {
-	if pin == "" {
-		return nil, errors.Errorf("pin is required")
-	}
-	cCredMeta := C.fido_credman_metadata_new()
-	defer C.fido_credman_metadata_free(&cCredMeta)
+// // Credentials ...
+// func Credentials(d *Device, pin string) (*CredentialsInfo, error) {
+// 	if pin == "" {
+// 		return nil, errors.Errorf("pin is required")
+// 	}
+// 	cCredMeta := C.fido_credman_metadata_new()
+// 	defer C.fido_credman_metadata_free(&cCredMeta)
 
-	if cErr := C.fido_credman_get_dev_metadata(d.dev, cCredMeta, cString(pin)); cErr != C.FIDO_OK {
-		return nil, errors.Wrap(errFromCode(cErr), "failed to get credential info")
-	}
+// 	if cErr := C.fido_credman_get_dev_metadata(d.dev, cCredMeta, cString(pin)); cErr != C.FIDO_OK {
+// 		return nil, errors.Wrap(errFromCode(cErr), "failed to get credential info")
+// 	}
 
-	rkExisting := int64(C.fido_credman_rk_existing(cCredMeta))
-	rkRemaining := int64(C.fido_credman_rk_remaining(cCredMeta))
+// 	rkExisting := int64(C.fido_credman_rk_existing(cCredMeta))
+// 	rkRemaining := int64(C.fido_credman_rk_remaining(cCredMeta))
 
-	return &CredentialsInfo{
-		RKExisting:  rkExisting,
-		RKRemaining: rkRemaining,
-	}, nil
-}
+// 	return &CredentialsInfo{
+// 		RKExisting:  rkExisting,
+// 		RKRemaining: rkRemaining,
+// 	}, nil
+// }
 
 // Assertion ...
 type Assertion struct {
@@ -363,26 +451,55 @@ type Assertion struct {
 	Sig        []byte
 }
 
+// GetAssertionOpts ...
+type GetAssertionOpts struct {
+	Extensions []Extension
+	UV         Opt
+	UP         Opt
+	HMACSalt   []byte
+}
+
 // GetAssertion ...
 func GetAssertion(
 	d *Device,
-	rpid string,
+	rpID string,
 	clientDataHash []byte,
-	allowCredIDs [][]byte,
+	credID []byte,
+	opts *GetAssertionOpts,
 	pin string) (*Assertion, error) {
+
+	if opts == nil {
+		opts = &GetAssertionOpts{}
+	}
 
 	cAssert := C.fido_assert_new()
 	defer C.fido_assert_free(&cAssert)
 
-	if cErr := C.fido_assert_set_rp(cAssert, cString(rpid)); cErr != C.FIDO_OK {
+	if cErr := C.fido_assert_set_rp(cAssert, cString(rpID)); cErr != C.FIDO_OK {
 		return nil, errors.Wrapf(errFromCode(cErr), "failed to set assertion RP ID")
 	}
 	if cErr := C.fido_assert_set_clientdata_hash(cAssert, cBytes(clientDataHash), cLen(clientDataHash)); cErr != C.FIDO_OK {
 		return nil, errors.Wrapf(errFromCode(cErr), "failed to set client data hash")
 	}
-	for _, allowCredID := range allowCredIDs {
-		if cErr := C.fido_assert_allow_cred(cAssert, cBytes(allowCredID), cLen(allowCredID)); cErr != C.FIDO_OK {
+	if credID != nil {
+		if cErr := C.fido_assert_allow_cred(cAssert, cBytes(credID), cLen(credID)); cErr != C.FIDO_OK {
 			return nil, errors.Wrapf(errFromCode(cErr), "failed to set allowed credentials")
+		}
+	}
+	if exts := extensionsInt(opts.Extensions); exts > 0 {
+		if cErr := C.fido_assert_set_extensions(cAssert, C.int(exts)); cErr != C.FIDO_OK {
+			return nil, errors.Wrap(errFromCode(cErr), "failed to set extensions")
+		}
+	}
+	if cErr := C.fido_assert_set_uv(cAssert, cOpt(opts.UV)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to set uv")
+	}
+	if cErr := C.fido_assert_set_up(cAssert, cOpt(opts.UP)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to set up")
+	}
+	if opts.HMACSalt != nil {
+		if cErr := C.fido_assert_set_hmac_salt(cAssert, cBytes(opts.HMACSalt), cLen(opts.HMACSalt)); cErr != C.FIDO_OK {
+			return nil, errors.Wrapf(errFromCode(cErr), "failed to set hmac salt")
 		}
 	}
 
