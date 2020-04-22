@@ -46,8 +46,8 @@ type Option struct {
 	Value bool
 }
 
-// CBORInfo ...
-type CBORInfo struct {
+// Info ...
+type Info struct {
 	AAGUID     []byte
 	Protocols  []byte
 	Extensions []string
@@ -130,8 +130,9 @@ func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
 	}, nil
 }
 
-// CBORData ...
-func (d *Device) CBORData() (*CBORInfo, error) {
+// GetInfo represents authenticatorGetInfo (0x04).
+// https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorGetInfo
+func GetInfo(d *Device) (*Info, error) {
 	info := C.fido_cbor_info_new()
 	if cErr := C.fido_dev_get_cbor_info(d.dev, info); cErr != C.FIDO_OK {
 		return nil, errors.Errorf("fido_dev_get_cbor_info failed %d", cErr)
@@ -182,7 +183,7 @@ func (d *Device) CBORData() (*CBORInfo, error) {
 
 	C.fido_cbor_info_free(&info)
 
-	return &CBORInfo{
+	return &Info{
 		AAGUID:     aaguid,
 		Protocols:  protocols,
 		Versions:   versions,
@@ -191,25 +192,130 @@ func (d *Device) CBORData() (*CBORInfo, error) {
 	}, nil
 }
 
-func goStrings(argc C.int, argv **C.char) []string {
-	length := int(argc)
-	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
-	gostrings := make([]string, length)
-	for i, s := range tmpslice {
-		gostrings[i] = C.GoString(s)
-	}
-	return gostrings
+// RP is Relying Party.
+type RP struct {
+	ID   string
+	Name string
 }
 
-func goBools(argc C.int, argv *C.bool) []bool {
-	length := int(argc)
-	tmpslice := (*[1 << 30]C.bool)(unsafe.Pointer(argv))[:length:length]
-	gobools := make([]bool, length)
-	for i, s := range tmpslice {
-		gobools[i] = bool(s)
-	}
-	return gobools
+// User ...
+type User struct {
+	ID          string
+	Icon        string
+	Name        string
+	DisplayName string
 }
+
+// Attestation from MakeCredential.
+type Attestation struct {
+	AuthData []byte
+	PubKey   []byte
+	X5C      []byte
+	Sig      []byte
+}
+
+// COSEAlgorithm ...
+type COSEAlgorithm int
+
+const (
+	// ES256 ...
+	ES256 COSEAlgorithm = -7
+	// EDDSA ...
+	EDDSA COSEAlgorithm = -8
+
+	// ECDHES256 COSEAlgorithm = -25
+
+	// RS256 ...
+	RS256 COSEAlgorithm = -257
+)
+
+// MakeCredential represents authenticatorMakeCredential (0x01).
+// https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorMakeCredential
+func MakeCredential(
+	d *Device,
+	clientDataHash []byte,
+	rp RP,
+	user User,
+	typ COSEAlgorithm,
+	pin string) (*Attestation, error) {
+
+	cCred := C.fido_cred_new()
+	C.fido_cred_set_clientdata_hash(cCred, (*C.uchar)(&clientDataHash[0]), C.size_t(len(clientDataHash)))
+	C.fido_cred_set_rp(cCred, C.CString(rp.ID), C.CString(rp.Name))
+	C.fido_cred_set_user(cCred, (*C.uchar)(&[]byte(user.ID)[0]), C.size_t(len(user.ID)), C.CString(user.Name), C.CString(user.DisplayName), C.CString(user.Icon))
+	C.fido_cred_set_type(cCred, C.int(typ))
+	// C.fido_cred_set_extensions()
+
+	var cPin *C.char
+	if pin != "" {
+		cPin = C.CString(pin)
+	}
+	if cErr := C.fido_dev_make_cred(d.dev, cCred, cPin); cErr != C.FIDO_OK {
+		return nil, errors.Errorf("fido_dev_make_cred failed %d", cErr)
+	}
+
+	cAuthDataLen := C.fido_cred_authdata_len(cCred)
+	cAuthDataPtr := C.fido_cred_authdata_ptr(cCred)
+	authData := C.GoBytes(unsafe.Pointer(cAuthDataPtr), C.int(cAuthDataLen))
+
+	cPubKeyLen := C.fido_cred_pubkey_len(cCred)
+	cPubKeyPtr := C.fido_cred_pubkey_ptr(cCred)
+	pubKey := C.GoBytes(unsafe.Pointer(cPubKeyPtr), C.int(cPubKeyLen))
+
+	cX5cLen := C.fido_cred_x5c_len(cCred)
+	cX5cPtr := C.fido_cred_x5c_ptr(cCred)
+	x5c := C.GoBytes(unsafe.Pointer(cX5cPtr), C.int(cX5cLen))
+
+	cSigLen := C.fido_cred_sig_len(cCred)
+	cSigPtr := C.fido_cred_sig_ptr(cCred)
+	sig := C.GoBytes(unsafe.Pointer(cSigPtr), C.int(cSigLen))
+
+	attestation := &Attestation{
+		AuthData: authData,
+		PubKey:   pubKey,
+		X5C:      x5c,
+		Sig:      sig,
+	}
+
+	C.fido_cred_free(&cCred)
+
+	return attestation, nil
+}
+
+// SetPin ...
+func (d *Device) SetPin(pin string, old string) error {
+	if cErr := C.fido_dev_set_pin(d.dev, C.CString(pin), C.CString(old)); cErr != C.FIDO_OK {
+		return errors.Errorf("fido_dev_set_pin failed %d", cErr)
+	}
+	return nil
+}
+
+// Reset represents authenticatorReset.
+// https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorReset
+func Reset(d *Device) error {
+	if cErr := C.fido_dev_reset(d.dev); cErr != C.FIDO_OK {
+		return errors.Errorf("fido_dev_reset failed %d", cErr)
+	}
+	return nil
+}
+
+// RetryCount ...
+func (d *Device) RetryCount() (int, error) {
+	var retryCount C.int
+	if cErr := C.fido_dev_get_retry_count(d.dev, &retryCount); cErr != C.FIDO_OK {
+		return 0, errors.Errorf("fido_dev_get_retry_count failed %d", cErr)
+	}
+	return int(retryCount), nil
+}
+
+// type Assertion struct {
+// 	AuthData       []byte
+// 	ClientDataHash []byte
+// 	HMACSecret     []byte
+// 	Signature      []byte
+// 	User           User
+// }
+// func NewAssertion() *Assertion {}
 
 // DetectDevices detects devices.
 func DetectDevices(max int) ([]*DeviceInfo, error) {
@@ -253,4 +359,24 @@ func DetectDevices(max int) ([]*DeviceInfo, error) {
 		})
 	}
 	return deviceInfos, nil
+}
+
+func goStrings(argc C.int, argv **C.char) []string {
+	length := int(argc)
+	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
+	gostrings := make([]string, length)
+	for i, s := range tmpslice {
+		gostrings[i] = C.GoString(s)
+	}
+	return gostrings
+}
+
+func goBools(argc C.int, argv *C.bool) []bool {
+	length := int(argc)
+	tmpslice := (*[1 << 30]C.bool)(unsafe.Pointer(argv))[:length:length]
+	gobools := make([]bool, length)
+	for i, s := range tmpslice {
+		gobools[i] = bool(s)
+	}
+	return gobools
 }
