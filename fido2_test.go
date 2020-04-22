@@ -1,8 +1,11 @@
 package fido2_test
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/hex"
 	"log"
+	"os"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/keys-pub/go-fido2"
@@ -26,7 +29,7 @@ func ExampleDetectDevices() {
 
 		log.Printf("Type: %s\n", device.Type())
 
-		hidInfo, err := device.CTAPHIDInfo()
+		hidInfo, err := fido2.CTAPHIDInfo(device)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -40,7 +43,7 @@ func ExampleDetectDevices() {
 	}
 
 	// Output:
-	// ???
+	//
 }
 
 func ExampleMakeCredential() {
@@ -63,19 +66,20 @@ func ExampleMakeCredential() {
 	}
 	defer device.Close()
 
-	cdh := randBytes(32)
+	cdh := bytes.Repeat([]byte{0x01}, 32)
+	userID := bytes.Repeat([]byte{0x02}, 32)
 
-	attestation, err := fido2.MakeCredential(device,
+	cred, err := fido2.MakeCredential(
+		device,
 		cdh,
 		fido2.RP{
 			ID:   "keys.pub",
 			Name: "keys.pub",
 		},
 		fido2.User{
-			ID:          "gabriel@keys.pub",
+			ID:          userID,
 			Name:        "gabriel",
 			DisplayName: "Gabriel",
-			Icon:        "?",
 		},
 		fido2.ES256, // Algorithm
 		"",          // Pin
@@ -84,14 +88,178 @@ func ExampleMakeCredential() {
 		log.Fatal(err)
 	}
 
-	log.Printf("Attestation:\n")
-	log.Printf("%s\n", spew.Sdump(attestation.AuthData))
-	log.Printf("%s\n", spew.Sdump(attestation.PubKey))
-	// log.Printf("%s\n", spew.Sdump(attestation.X5C))
-	log.Printf("%s\n", spew.Sdump(attestation.Sig))
+	log.Printf("Credential:\n")
+	log.Printf("AuthData: %s\n", spew.Sdump(cred.AuthData))
+	log.Printf("ClientDataHash: %s\n", spew.Sdump(cred.ClientDataHash))
+	log.Printf("ID: %s\n", spew.Sdump(cred.ID))
+	log.Printf("Type: %d\n", cred.Type)
+	log.Printf("Sig: %s\n", spew.Sdump(cred.Sig))
 
 	// Output:
-	// ???
+	//
+}
+
+func ExampleGetAssertion() {
+	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
+
+	detected, err := fido2.DetectDevices(100)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(detected) == 0 {
+		log.Println("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", detected[0])
+	path := detected[0].Path
+	device, err := fido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer device.Close()
+
+	cdh := bytes.Repeat([]byte{0x01}, 32)
+	userID := bytes.Repeat([]byte{0x02}, 32)
+
+	cred, err := fido2.MakeCredential(
+		device,
+		cdh,
+		fido2.RP{
+			ID: "keys.pub",
+		},
+		fido2.User{
+			ID:   userID,
+			Name: "gabriel",
+		},
+		fido2.ES256, // Algorithm
+		"",          // Pin
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Credential:\n")
+	// log.Printf("AuthData: %s\n", spew.Sdump(cred.AuthData))
+	// log.Printf("ClientDataHash: %s\n", spew.Sdump(cred.ClientDataHash))
+	log.Printf("ID: %s\n", hex.EncodeToString(cred.ID))
+	log.Printf("Type: %d\n", cred.Type)
+	log.Printf("Sig: %s\n", spew.Sdump(cred.Sig))
+
+	assertion, err := fido2.GetAssertion(
+		device,
+		"keys.pub",
+		cdh,
+		[][]byte{cred.ID},
+		"", // Pin
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Assertion:\n")
+	log.Printf("%s\n", spew.Sdump(assertion.AuthData))
+	log.Printf("%s\n", spew.Sdump(assertion.HMACSecret))
+	log.Printf("%s\n", spew.Sdump(assertion.Sig))
+	// log.Printf("%+v\n", assertion.User)
+
+	// Output:
+	//
+}
+
+func ExampleCredentialsInfo() {
+	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
+
+	detected, err := fido2.DetectDevices(100)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(detected) == 0 {
+		log.Println("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", detected[0])
+	path := detected[0].Path
+	device, err := fido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer device.Close()
+
+	info, err := fido2.Credentials(device, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Info: %+v\n", info)
+
+	// Output:
+	//
+
+}
+
+func ExampleReset() {
+	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
+
+	if os.Getenv("RESET_ALLOWED") != "1" {
+		log.Fatal("only runs if RESET_ALLOWED")
+	}
+
+	detected, err := fido2.DetectDevices(100)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(detected) == 0 {
+		log.Println("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", detected[0])
+	path := detected[0].Path
+	device, err := fido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer device.Close()
+
+	log.Printf("Resetting: %+v\n", detected[0])
+	if err := fido2.Reset(device); err != nil {
+		log.Fatal(err)
+	}
+
+	// Output:
+	//
+
+}
+
+func ExampleSetPIN() {
+	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
+
+	detected, err := fido2.DetectDevices(100)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(detected) == 0 {
+		log.Println("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", detected[0])
+	path := detected[0].Path
+	device, err := fido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer device.Close()
+
+	if err := fido2.SetPIN(device, "12345", ""); err != nil {
+		log.Fatal(err)
+	}
+
+	// Output:
+	//
+
 }
 
 func randBytes(length int) []byte {
