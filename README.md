@@ -4,7 +4,7 @@ Go wrapper for libfido2.
 
 ```go
 import (
-    "github.com/keys-pub/go-fido2"
+    "github.com/keys-pub/go-libfido2"
 )
 
 ...

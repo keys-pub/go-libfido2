@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/keys-pub/go-fido2"
+	"github.com/keys-pub/go-libfido2"
 )
 
 func ExampleDetectDevices() {
