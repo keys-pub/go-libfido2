@@ -4,7 +4,7 @@ Go wrapper for libfido2.
 
 ```go
 import (
-    "github.com/keys-pub/go-libfido2"
+    fido2 "github.com/keys-pub/go-libfido2"
 )
 
 ...
@@ -53,7 +53,7 @@ if err != nil {
 
 log.Printf("Credential:\n")
 log.Printf("ID: %s\n", hex.EncodeToString(cred.ID))
-log.Printf("Type: %d\n", cred.Type)
+log.Printf("Type: %s\n", cred.Type)
 log.Printf("Sig: %s\n", hex.EncodeToString(cred.Sig))
 
 assertion, err := fido2.GetAssertion(

@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/keys-pub/go-libfido2"
+	fido2 "github.com/keys-pub/go-libfido2"
 )
 
 func ExampleDetectDevices() {
@@ -147,7 +147,7 @@ func ExampleGetAssertion() {
 	// log.Printf("AuthData: %s\n", spew.Sdump(cred.AuthData))
 	// log.Printf("ClientDataHash: %s\n", spew.Sdump(cred.ClientDataHash))
 	log.Printf("ID: %s\n", hex.EncodeToString(cred.ID))
-	log.Printf("Type: %d\n", cred.Type)
+	log.Printf("Type: %s\n", cred.Type)
 	log.Printf("Sig: %s\n", spew.Sdump(cred.Sig))
 
 	assertion, err := fido2.GetAssertion(
