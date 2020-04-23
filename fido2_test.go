@@ -1,7 +1,6 @@
 package fido2_test
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"log"
 	"os"
@@ -65,8 +64,8 @@ func ExampleMakeCredential() {
 	}
 	defer device.Close()
 
-	cdh := randBytes(32)
-	userID := randBytes(32)
+	cdh := fido2.RandBytes(32)
+	userID := fido2.RandBytes(32)
 
 	cred, err := fido2.MakeCredential(
 		device,
@@ -119,9 +118,9 @@ func ExampleGetAssertion() {
 	}
 	defer device.Close()
 
-	cdh := randBytes(32)
-	userID := randBytes(32)
-	salt := randBytes(32)
+	cdh := fido2.RandBytes(32)
+	userID := fido2.RandBytes(32)
+	salt := fido2.RandBytes(32)
 
 	cred, err := fido2.MakeCredential(
 		device,
@@ -269,12 +268,4 @@ func ExampleSetPIN() {
 	// Output:
 	//
 
-}
-
-func randBytes(length int) []byte {
-	buf := make([]byte, length)
-	if _, err := rand.Read(buf); err != nil {
-		panic(err)
-	}
-	return buf
 }

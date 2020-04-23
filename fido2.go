@@ -13,6 +13,7 @@ package fido2
 */
 import "C"
 import (
+	"crypto/rand"
 	"fmt"
 	"unsafe"
 
@@ -694,4 +695,13 @@ func errFromCode(code C.int) error {
 	default:
 		return ErrCode{code: int(code)}
 	}
+}
+
+// RandBytes returns random bytes of length.
+func RandBytes(length int) []byte {
+	buf := make([]byte, length)
+	if _, err := rand.Read(buf); err != nil {
+		panic(err)
+	}
+	return buf
 }
