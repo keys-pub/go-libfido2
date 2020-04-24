@@ -1,13 +1,12 @@
 package fido2_test
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"log"
 	"os"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/keys-pub/go-fido2"
+	fido2 "github.com/keys-pub/go-libfido2"
 )
 
 func ExampleDetectDevices() {
@@ -65,8 +64,8 @@ func ExampleMakeCredential() {
 	}
 	defer device.Close()
 
-	cdh := randBytes(32)
-	userID := randBytes(32)
+	cdh := fido2.RandBytes(32)
+	userID := fido2.RandBytes(32)
 
 	cred, err := fido2.MakeCredential(
 		device,
@@ -119,9 +118,9 @@ func ExampleGetAssertion() {
 	}
 	defer device.Close()
 
-	cdh := randBytes(32)
-	userID := randBytes(32)
-	salt := randBytes(32)
+	cdh := fido2.RandBytes(32)
+	userID := fido2.RandBytes(32)
+	salt := fido2.RandBytes(32)
 
 	cred, err := fido2.MakeCredential(
 		device,
@@ -148,7 +147,7 @@ func ExampleGetAssertion() {
 	// log.Printf("AuthData: %s\n", spew.Sdump(cred.AuthData))
 	// log.Printf("ClientDataHash: %s\n", spew.Sdump(cred.ClientDataHash))
 	log.Printf("ID: %s\n", hex.EncodeToString(cred.ID))
-	log.Printf("Type: %d\n", cred.Type)
+	log.Printf("Type: %s\n", cred.Type)
 	log.Printf("Sig: %s\n", spew.Sdump(cred.Sig))
 
 	assertion, err := fido2.GetAssertion(
@@ -269,12 +268,4 @@ func ExampleSetPIN() {
 	// Output:
 	//
 
-}
-
-func randBytes(length int) []byte {
-	buf := make([]byte, length)
-	if _, err := rand.Read(buf); err != nil {
-		panic(err)
-	}
-	return buf
 }

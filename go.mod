@@ -1,4 +1,4 @@
-module github.com/keys-pub/go-fido2
+module github.com/keys-pub/go-libfido2
 
 go 1.13
 
