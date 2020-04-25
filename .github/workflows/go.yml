@@ -10,7 +10,7 @@ jobs:
       - name: Install dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt install -y gcc
+          gcc --version
           sudo apt install software-properties-common
           sudo apt-add-repository -y ppa:yubico/stable
           sudo apt update
