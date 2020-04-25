@@ -5,7 +5,7 @@ jobs:
     strategy:
       matrix:
         go-version: [1.13.x]
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [macos-latest, windows-latest]
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Install Go
@@ -18,3 +18,4 @@ jobs:
         run: go test
         env:
           LD_LIBRARY_PATH: ./linux/lib
+	        DYLD_LIBRARY_PATH: ./darwin/lib
