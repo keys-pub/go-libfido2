@@ -3,7 +3,7 @@ package fido2
 /*
 #cgo darwin LDFLAGS: -L${SRCDIR}/darwin/lib -lfido2
 #cgo darwin CFLAGS: -I${SRCDIR}/darwin/include
-#cgo linux LDFLAGS: -L${SRCDIR}/linux/lib -lfido2
+#cgo linux LDFLAGS: -L${SRCDIR}/linux/lib -Wl,-rpath,$ORIGIN/linux/lib -lfido2 -lcbor
 #cgo linux CFLAGS: -I${SRCDIR}/linux/include
 #cgo windows LDFLAGS: -L${SRCDIR}/windows/lib -lfido2
 #cgo windows CFLAGS: -I${SRCDIR}/windows/include
