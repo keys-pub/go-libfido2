@@ -16,3 +16,5 @@ jobs:
         uses: actions/checkout@v2
       - name: Test
         run: go test
+        env:
+          LD_LIBRARY_PATH: ./linux/lib
