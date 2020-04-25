@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ matrix.platform }}	
     steps:	
       - name: Install libfido2
-        if: matrix.os == "ubuntu-latest"
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt install software-properties-common
           sudo apt-add-repository ppa:yubico/stable
