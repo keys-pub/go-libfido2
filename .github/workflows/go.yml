@@ -7,11 +7,12 @@ jobs:
         os: ['ubuntu-latest']
     runs-on: ${{ matrix.os }}
     steps:	
-      - name: Install libfido2
+      - name: Install dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
+          sudo apt install -y gcc
           sudo apt install software-properties-common
-          sudo apt-add-repository ppa:yubico/stable
+          sudo apt-add-repository -y ppa:yubico/stable
           sudo apt update
           sudo apt install libfido2-dev
       - name: Install Go	
