@@ -80,7 +80,7 @@ func ExampleDevice_MakeCredential() {
 		},
 		fido2.ES256, // Algorithm
 		nil,
-		"", // Pin
+		"12345", // Pin
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -135,7 +135,7 @@ func ExampleDevice_Assertion() {
 			Extensions: []fido2.Extension{fido2.HMACSecret},
 			RK:         fido2.True,
 		},
-		"", // Pin
+		"12345", // Pin
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -157,7 +157,7 @@ func ExampleDevice_Assertion() {
 			UP:         fido2.True,
 			HMACSalt:   salt,
 		},
-		"", // Pin
+		"12345", // Pin
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -206,15 +206,18 @@ func ExampleDevice_Credentials() {
 		log.Fatal(err)
 	}
 	for _, rp := range rps {
-		log.Printf("ID: %s, Name: %s\n", rp.ID, rp.Name)
+		log.Printf("RP{ID: %s, Name: %s}\n", rp.ID, rp.Name)
 		creds, err := device.Credentials(rp.ID, pin)
 		if err != nil {
 			log.Fatal(err)
 		}
 		for _, cred := range creds {
-			log.Printf("  ID: %s\n", hex.EncodeToString(cred.ID))
-			log.Printf("  Type: %s\n", cred.Type)
-			log.Printf("  Sig: %s\n", hex.EncodeToString(cred.Sig))
+			log.Printf("User{ID: %s, Name: %s}\n", hex.EncodeToString(cred.User.ID), cred.User.Name)
+			log.Printf("ID: %s\n", hex.EncodeToString(cred.ID))
+			log.Printf("Type: %s\n", cred.Type)
+			// log.Printf("AuthData: %s\n", hex.EncodeToString(cred.AuthData))
+			// log.Printf("ClientDataHash: %s\n", hex.EncodeToString(cred.ClientDataHash))
+			// log.Printf("Sig: %s\n", hex.EncodeToString(cred.Sig))
 			log.Printf("\n")
 		}
 	}

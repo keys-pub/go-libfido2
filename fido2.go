@@ -209,16 +209,23 @@ type User struct {
 	Icon        string
 }
 
-// Credential ...
-type Credential struct {
-	AuthData       []byte
+// Attestation from MakeCredential ...
+type Attestation struct {
 	ClientDataHash []byte
+	AuthData       []byte
 	ID             []byte
 	Type           COSEAlgorithm
 	PubKey         []byte
 	Cert           []byte
 	Sig            []byte
 	Format         string
+}
+
+// Credential ...
+type Credential struct {
+	ID   []byte
+	Type COSEAlgorithm
+	User User
 }
 
 // COSEAlgorithm ...
@@ -309,7 +316,7 @@ func (d *Device) MakeCredential(
 	user User,
 	typ COSEAlgorithm,
 	opts *MakeCredentialOpts,
-	pin string) (*Credential, error) {
+	pin string) (*Attestation, error) {
 
 	if opts == nil {
 		opts = &MakeCredentialOpts{}
@@ -346,15 +353,15 @@ func (d *Device) MakeCredential(
 		return nil, errors.Wrap(errFromCode(cErr), "failed to make credential")
 	}
 
-	cred, err := credential(cCred)
+	at, err := attestation(cCred)
 	if err != nil {
 		return nil, err
 	}
 
-	return cred, nil
+	return at, nil
 }
 
-func credential(cCred *C.fido_cred_t) (*Credential, error) {
+func attestation(cCred *C.fido_cred_t) (*Attestation, error) {
 	cAuthDataLen := C.fido_cred_authdata_len(cCred)
 	cAuthDataPtr := C.fido_cred_authdata_ptr(cCred)
 	authData := C.GoBytes(unsafe.Pointer(cAuthDataPtr), C.int(cAuthDataLen))
@@ -382,7 +389,7 @@ func credential(cCred *C.fido_cred_t) (*Credential, error) {
 	cSigPtr := C.fido_cred_sig_ptr(cCred)
 	sig := C.GoBytes(unsafe.Pointer(cSigPtr), C.int(cSigLen))
 
-	cred := &Credential{
+	at := &Attestation{
 		AuthData:       authData,
 		ClientDataHash: clientDataHashOut,
 		ID:             id,
@@ -391,6 +398,35 @@ func credential(cCred *C.fido_cred_t) (*Credential, error) {
 		Cert:           cert,
 		Sig:            sig,
 		Format:         C.GoString(cFormat),
+	}
+	return at, nil
+}
+
+func credential(cCred *C.fido_cred_t) (*Credential, error) {
+	cUserIDLen := C.fido_cred_user_id_len(cCred)
+	cUserIDPtr := C.fido_cred_user_id_ptr(cCred)
+	userID := C.GoBytes(unsafe.Pointer(cUserIDPtr), C.int(cUserIDLen))
+	cDisplayName := C.fido_cred_display_name(cCred)
+	cName := C.fido_cred_user_name(cCred)
+
+	// cRPID := C.fido_cred_rp_id(cCred)
+	// cRPName := C.fido_cred_rp_name(cCred)
+
+	cIDLen := C.fido_cred_id_len(cCred)
+	cIDPtr := C.fido_cred_id_ptr(cCred)
+	id := C.GoBytes(unsafe.Pointer(cIDPtr), C.int(cIDLen))
+
+	// cFormat := C.fido_cred_fmt(cCred)
+	typOut := COSEAlgorithm(C.fido_cred_type(cCred))
+
+	cred := &Credential{
+		ID:   id,
+		Type: typOut,
+		User: User{
+			ID:          userID,
+			Name:        C.GoString(cName),
+			DisplayName: C.GoString(cDisplayName),
+		},
 	}
 	return cred, nil
 }
