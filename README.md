@@ -4,74 +4,98 @@ Go wrapper for libfido2.
 
 ```go
 import (
-    fido2 "github.com/keys-pub/go-libfido2"
+    "github.com/keys-pub/go-libfido2"
 )
 
-...
+func ExampleDevice_Assertion() {
+    detected, err := libfido2.DetectDevices(100)
+    if err != nil {
+        log.Fatal(err)
+    }
+    if len(detected) == 0 {
+        log.Println("No devices")
+        return
+    }
 
-detected, err := fido2.DetectDevices(100)
-if err != nil {
-    log.Fatal(err)
+    log.Printf("Using device: %+v\n", detected[0])
+    path := detected[0].Path
+    device, err := libfido2.NewDevice(path)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer device.Close()
+
+    cdh := libfido2.RandBytes(32)
+    userID := libfido2.RandBytes(32)
+    salt := libfido2.RandBytes(32)
+
+    cred, err := device.MakeCredential(
+        cdh,
+        libfido2.RelyingParty{
+            ID: "keys.pub",
+        },
+        libfido2.User{
+            ID:   userID,
+            Name: "gabriel",
+        },
+        libfido2.ES256, // Algorithm
+        &libfido2.MakeCredentialOpts{
+            Extensions: []libfido2.Extension{libfido2.HMACSecret},
+            RK:         libfido2.True,
+        },
+        "12345", // Pin
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("Credential:\n")
+    log.Printf("ID: %s\n", hex.EncodeToString(cred.ID))
+    log.Printf("Type: %s\n", cred.Type)
+    log.Printf("Sig: %s\n", hex.EncodeToString(cred.Sig))
+
+    assertion, err := device.Assertion(
+        "keys.pub",
+        cdh,
+        cred.ID,
+        &libfido2.AssertionOpts{
+            Extensions: []libfido2.Extension{libfido2.HMACSecret},
+            UP:         libfido2.True,
+            HMACSalt:   salt,
+        },
+        "", // Pin
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("Assertion:\n")
+    log.Printf("%s\n", hex.EncodeToString(assertion.AuthData))
+    log.Printf("%s\n", hex.EncodeToString(assertion.HMACSecret))
+    log.Printf("%s\n", hex.EncodeToString(assertion.Sig))
 }
-if len(detected) == 0 {
-    log.Println("No devices")
-    return
-}
+```
 
-log.Printf("Using device: %+v\n", detected[0])
-path := detected[0].Path
-device, err := fido2.NewDevice(path)
-if err != nil {
-    log.Fatal(err)
-}
-defer device.Close()
+## Dependencies
 
-cdh := fido2.RandBytes(32)
-userID := fido2.RandBytes(32)
-salt := fido2.RandBytes(32)
+### Linux
 
-cred, err := device.MakeCredential(
-    cdh,
-    fido2.RelyingParty{
-        ID: "keys.pub",
-    },
-    fido2.User{
-        ID:   userID,
-        Name: "gabriel",
-    },
-    fido2.ES256, // Algorithm
-    &fido2.MakeCredentialOpts{
-        Extensions: []fido2.Extension{fido2.HMACSecret},
-        RK:         fido2.True,
-    },
-    "", // Pin
-)
-if err != nil {
-    log.Fatal(err)
-}
+```shell
+sudo apt install software-properties-common
+sudo apt-add-repository ppa:yubico/stable
+sudo apt update
+sudo apt install libfido2-dev
+```
 
-log.Printf("Credential:\n")
-log.Printf("ID: %s\n", hex.EncodeToString(cred.ID))
-log.Printf("Type: %s\n", cred.Type)
-log.Printf("Sig: %s\n", hex.EncodeToString(cred.Sig))
+### macOS
 
-assertion, err := device.Assertion(
-    "keys.pub",
-    cdh,
-    cred.ID,
-    &fido2.AssertionOpts{
-        Extensions: []fido2.Extension{fido2.HMACSecret},
-        UP:         fido2.True,
-        HMACSalt:   salt,
-    },
-    "", // Pin
-)
-if err != nil {
-    log.Fatal(err)
-}
+```shell
+brew install libfido2
+```
 
-log.Printf("Assertion:\n")
-log.Printf("%s\n", hex.EncodeToString(assertion.AuthData))
-log.Printf("%s\n", hex.EncodeToString(assertion.HMACSecret))
-log.Printf("%s\n", hex.EncodeToString(assertion.Sig))
+### Windows
+
+```shell
+scoop bucket add keys.pub https://github.com/keys-pub/scoop-bucket
+scoop install libfido2
 ```

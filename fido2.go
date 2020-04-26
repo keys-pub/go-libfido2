@@ -1,4 +1,4 @@
-package fido2
+package libfido2
 
 /*
 #cgo darwin LDFLAGS: -L/usr/local/lib -lfido2

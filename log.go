@@ -1,4 +1,4 @@
-package fido2
+package libfido2
 
 import (
 	pkglog "log"

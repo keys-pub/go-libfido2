@@ -1,4 +1,4 @@
-package fido2_test
+package libfido2_test
 
 import (
 	"testing"
