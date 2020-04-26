@@ -1,24 +1,37 @@
-on: [push]	
-name: Test	
-jobs:	
-  test:	
-    strategy:	
-      matrix:	
-        os: ['ubuntu-latest']
+on: [push]
+name: Test
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: ["macos-latest", "windows-latest"]
     runs-on: ${{ matrix.os }}
-    steps:	
-      - name: Install dependencies
+    steps:
+      - name: Install dependencies (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt install software-properties-common
           sudo apt-add-repository -y ppa:yubico/stable
           sudo apt update
           sudo apt install libfido2-dev
-      - name: Install Go	
-        uses: actions/setup-go@v1	
-        with:	
-          go-version: 1.13.x	
-      - name: Checkout code	
-        uses: actions/checkout@v2	
-      - name: Build	
-        run: go build	
+      - name: Install dependencies (macos)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew tap keys-pub/tap
+          brew install keys-pub/tap/libfido2
+      - name: Install dependencies (windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          Set-ExecutionPolicy RemoteSigned -scope CurrentUser
+          Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')
+          scoop bucket add keys.pub https://github.com/keys-pub/scoop-bucket
+          scoop install libfido2
+          echo "::add-path::$HOME/scoop/apps/libfido2/current"
+      - name: Install Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13.x
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Build
+        run: go build
