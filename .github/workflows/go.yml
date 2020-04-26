@@ -16,7 +16,9 @@ jobs:
           sudo apt install libfido2-dev
       - name: Install dependencies (macos)
         if: matrix.os == 'macos-latest'
-        run: brew install libfido2
+        run: |
+          brew tap keys-pub/tap
+          brew install libfido2
       - name: Install dependencies (windows)
         if: matrix.os == 'windows-latest'
         run: |
