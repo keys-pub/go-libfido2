@@ -30,10 +30,9 @@ cdh := fido2.RandBytes(32)
 userID := fido2.RandBytes(32)
 salt := fido2.RandBytes(32)
 
-cred, err := fido2.MakeCredential(
-    device,
+cred, err := device.MakeCredential(
     cdh,
-    fido2.RP{
+    fido2.RelyingParty{
         ID: "keys.pub",
     },
     fido2.User{
@@ -56,12 +55,11 @@ log.Printf("ID: %s\n", hex.EncodeToString(cred.ID))
 log.Printf("Type: %s\n", cred.Type)
 log.Printf("Sig: %s\n", hex.EncodeToString(cred.Sig))
 
-assertion, err := fido2.GetAssertion(
-    device,
+assertion, err := device.Assertion(
     "keys.pub",
     cdh,
     cred.ID,
-    &fido2.GetAssertionOpts{
+    &fido2.AssertionOpts{
         Extensions: []fido2.Extension{fido2.HMACSecret},
         UP:         fido2.True,
         HMACSalt:   salt,

@@ -117,7 +117,7 @@ func ForceType(d *Device, typ DeviceType) error {
 }
 
 // CTAPHIDInfo ...
-func CTAPHIDInfo(d *Device) (*HIDInfo, error) {
+func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
 	protocol := C.fido_dev_protocol(d.dev)
 	major := C.fido_dev_major(d.dev)
 	minor := C.fido_dev_minor(d.dev)
@@ -135,7 +135,7 @@ func CTAPHIDInfo(d *Device) (*HIDInfo, error) {
 
 // GetInfo represents authenticatorGetInfo (0x04).
 // https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorGetInfo
-func GetInfo(d *Device) (*Info, error) {
+func (d *Device) GetInfo() (*Info, error) {
 	info := C.fido_cbor_info_new()
 	defer C.fido_cbor_info_free(&info)
 
@@ -195,8 +195,8 @@ func GetInfo(d *Device) (*Info, error) {
 	}, nil
 }
 
-// RP is Relying Party.
-type RP struct {
+// RelyingParty ...
+type RelyingParty struct {
 	ID   string
 	Name string
 }
@@ -303,10 +303,9 @@ func cOpt(o Opt) C.fido_opt_t {
 
 // MakeCredential represents authenticatorMakeCredential (0x01).
 // https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorMakeCredential
-func MakeCredential(
-	d *Device,
+func (d *Device) MakeCredential(
 	clientDataHash []byte,
-	rp RP,
+	rp RelyingParty,
 	user User,
 	typ COSEAlgorithm,
 	opts *MakeCredentialOpts,
@@ -347,6 +346,15 @@ func MakeCredential(
 		return nil, errors.Wrap(errFromCode(cErr), "failed to make credential")
 	}
 
+	cred, err := credential(cCred)
+	if err != nil {
+		return nil, err
+	}
+
+	return cred, nil
+}
+
+func credential(cCred *C.fido_cred_t) (*Credential, error) {
 	cAuthDataLen := C.fido_cred_authdata_len(cCred)
 	cAuthDataPtr := C.fido_cred_authdata_ptr(cCred)
 	authData := C.GoBytes(unsafe.Pointer(cAuthDataPtr), C.int(cAuthDataLen))
@@ -384,12 +392,11 @@ func MakeCredential(
 		Sig:            sig,
 		Format:         C.GoString(cFormat),
 	}
-
 	return cred, nil
 }
 
 // SetPIN ...
-func SetPIN(d *Device, pin string, old string) error {
+func (d *Device) SetPIN(pin string, old string) error {
 	if cErr := C.fido_dev_set_pin(d.dev, cString(pin), cString(old)); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to set pin")
 	}
@@ -402,7 +409,7 @@ func SetPIN(d *Device, pin string, old string) error {
 // depending on the authenticator. Yubico authenticators will return ErrNotAllowed if a reset is issued later than 5
 // seconds after power-up, and ErrActionTimeout if the user fails to confirm the reset by touching the key within 30
 // seconds.
-func Reset(d *Device) error {
+func (d *Device) Reset() error {
 	if cErr := C.fido_dev_reset(d.dev); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to reset")
 	}
@@ -410,40 +417,13 @@ func Reset(d *Device) error {
 }
 
 // RetryCount ...
-func RetryCount(d *Device) (int, error) {
+func (d *Device) RetryCount() (int, error) {
 	var retryCount C.int
 	if cErr := C.fido_dev_get_retry_count(d.dev, &retryCount); cErr != C.FIDO_OK {
 		return 0, errors.Wrap(errFromCode(cErr), "failed to get retry count")
 	}
 	return int(retryCount), nil
 }
-
-// // CredentialsInfo ...
-// type CredentialsInfo struct {
-// 	RKExisting  int64
-// 	RKRemaining int64
-// }
-
-// // Credentials ...
-// func Credentials(d *Device, pin string) (*CredentialsInfo, error) {
-// 	if pin == "" {
-// 		return nil, errors.Errorf("pin is required")
-// 	}
-// 	cCredMeta := C.fido_credman_metadata_new()
-// 	defer C.fido_credman_metadata_free(&cCredMeta)
-
-// 	if cErr := C.fido_credman_get_dev_metadata(d.dev, cCredMeta, cString(pin)); cErr != C.FIDO_OK {
-// 		return nil, errors.Wrap(errFromCode(cErr), "failed to get credential info")
-// 	}
-
-// 	rkExisting := int64(C.fido_credman_rk_existing(cCredMeta))
-// 	rkRemaining := int64(C.fido_credman_rk_remaining(cCredMeta))
-
-// 	return &CredentialsInfo{
-// 		RKExisting:  rkExisting,
-// 		RKRemaining: rkRemaining,
-// 	}, nil
-// }
 
 // Assertion ...
 type Assertion struct {
@@ -452,25 +432,24 @@ type Assertion struct {
 	Sig        []byte
 }
 
-// GetAssertionOpts ...
-type GetAssertionOpts struct {
+// AssertionOpts ...
+type AssertionOpts struct {
 	Extensions []Extension
 	UV         Opt
 	UP         Opt
 	HMACSalt   []byte
 }
 
-// GetAssertion ...
-func GetAssertion(
-	d *Device,
+// Assertion ...
+func (d *Device) Assertion(
 	rpID string,
 	clientDataHash []byte,
 	credID []byte,
-	opts *GetAssertionOpts,
+	opts *AssertionOpts,
 	pin string) (*Assertion, error) {
 
 	if opts == nil {
-		opts = &GetAssertionOpts{}
+		opts = &AssertionOpts{}
 	}
 
 	cAssert := C.fido_assert_new()
@@ -596,6 +575,78 @@ func DetectDevices(max int) ([]*DeviceInfo, error) {
 	return deviceInfos, nil
 }
 
+// CredentialsInfo ...
+type CredentialsInfo struct {
+	RKExisting  int64
+	RKRemaining int64
+}
+
+// CredentialsInfo ...
+func (d *Device) CredentialsInfo(pin string) (*CredentialsInfo, error) {
+	if pin == "" {
+		return nil, errors.Errorf("pin is required")
+	}
+	cCredMeta := C.fido_credman_metadata_new()
+	defer C.fido_credman_metadata_free(&cCredMeta)
+
+	if cErr := C.fido_credman_get_dev_metadata(d.dev, cCredMeta, cString(pin)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to get credentials info")
+	}
+
+	rkExisting := int64(C.fido_credman_rk_existing(cCredMeta))
+	rkRemaining := int64(C.fido_credman_rk_remaining(cCredMeta))
+
+	return &CredentialsInfo{
+		RKExisting:  rkExisting,
+		RKRemaining: rkRemaining,
+	}, nil
+}
+
+// Credentials ...
+func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
+	cRK := C.fido_credman_rk_new()
+	defer C.fido_credman_rk_free(&cRK)
+
+	if cErr := C.fido_credman_get_dev_rk(d.dev, cString(rpID), cRK, cString(pin)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to get resident key info")
+	}
+
+	count := int(C.fido_credman_rk_count(cRK))
+	credentials := make([]*Credential, 0, count)
+	for i := 0; i < count; i++ {
+		cCred := C.fido_credman_rk(cRK, C.size_t(i))
+		cred, err := credential(cCred)
+		if err != nil {
+			return nil, err
+		}
+		credentials = append(credentials, cred)
+	}
+	return credentials, nil
+}
+
+// RelyingParties ...
+func (d *Device) RelyingParties(pin string) ([]*RelyingParty, error) {
+	cRP := C.fido_credman_rp_new()
+	defer C.fido_credman_rp_free(&cRP)
+
+	if cErr := C.fido_credman_get_dev_rp(d.dev, cRP, cString(pin)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to get relying party info")
+	}
+
+	count := int(C.fido_credman_rp_count(cRP))
+	rps := make([]*RelyingParty, 0, count)
+	for i := 0; i < count; i++ {
+		cRPID := C.fido_credman_rp_id(cRP, C.size_t(i))
+		cRPName := C.fido_credman_rp_name(cRP, C.size_t(i))
+		// TODO: fido_credman_rp_id_hash_ptr?
+		rps = append(rps, &RelyingParty{
+			ID:   C.GoString(cRPID),
+			Name: C.GoString(cRPName),
+		})
+	}
+	return rps, nil
+}
+
 func goStrings(argc C.int, argv **C.char) []string {
 	length := int(argc)
 	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
@@ -646,11 +697,11 @@ var ErrInvalidArgument = errors.New("invalid argument")
 // ErrUserPresenceRequired is user presence required.
 var ErrUserPresenceRequired = errors.New("user presence required")
 
-// ErrTransmit if there was an error transmitting.
-var ErrTransmit = errors.New("transmit error")
+// ErrTX if there was an error transmitting.
+var ErrTX = errors.New("tx error")
 
-// ErrReceive if there was an error receiving.
-var ErrReceive = errors.New("receive error")
+// ErrRX if there was an error receiving.
+var ErrRX = errors.New("rx error")
 
 // ErrNotAllowed if not allowed.
 var ErrNotAllowed = errors.New("not allowed")
@@ -670,12 +721,18 @@ var ErrInvalidCredential = errors.New("invalid credential")
 // ErrUnsupportedOption if option is unsupported.
 var ErrUnsupportedOption = errors.New("unsupported option")
 
+// ErrPinInvalid if pin is wrong.
+var ErrPinInvalid = errors.New("pin invalid")
+
+// ErrRXNotCBOR  rx not CBOR.
+var ErrRXNotCBOR = errors.New("rx error: not CBOR")
+
 func errFromCode(code C.int) error {
 	switch code {
 	case C.FIDO_ERR_TX:
-		return ErrTransmit
+		return ErrTX
 	case C.FIDO_ERR_RX:
-		return ErrReceive
+		return ErrRX
 	case C.FIDO_ERR_INVALID_ARGUMENT:
 		return ErrInvalidArgument
 	case C.FIDO_ERR_USER_PRESENCE_REQUIRED:
@@ -692,6 +749,10 @@ func errFromCode(code C.int) error {
 		return ErrInvalidCredential
 	case C.FIDO_ERR_UNSUPPORTED_OPTION:
 		return ErrUnsupportedOption
+	case C.FIDO_ERR_PIN_INVALID:
+		return ErrPinInvalid
+	case C.FIDO_ERR_RX_NOT_CBOR:
+		return ErrRXNotCBOR
 	default:
 		return ErrCode{code: int(code)}
 	}

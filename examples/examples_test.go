@@ -27,13 +27,13 @@ func ExampleDetectDevices() {
 
 		log.Printf("Type: %s\n", device.Type())
 
-		hidInfo, err := fido2.CTAPHIDInfo(device)
+		hidInfo, err := device.CTAPHIDInfo()
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Printf("CTAPHIDInfo: %+v\n", hidInfo)
 
-		info, err := fido2.GetInfo(device)
+		info, err := device.GetInfo()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -44,7 +44,7 @@ func ExampleDetectDevices() {
 	//
 }
 
-func ExampleMakeCredential() {
+func ExampleDevice_MakeCredential() {
 	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
 
 	detected, err := fido2.DetectDevices(100)
@@ -67,10 +67,9 @@ func ExampleMakeCredential() {
 	cdh := fido2.RandBytes(32)
 	userID := fido2.RandBytes(32)
 
-	cred, err := fido2.MakeCredential(
-		device,
+	cred, err := device.MakeCredential(
 		cdh,
-		fido2.RP{
+		fido2.RelyingParty{
 			ID:   "keys.pub",
 			Name: "keys.pub",
 		},
@@ -98,7 +97,7 @@ func ExampleMakeCredential() {
 	//
 }
 
-func ExampleGetAssertion() {
+func ExampleDevice_Assertion() {
 	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
 
 	detected, err := fido2.DetectDevices(100)
@@ -122,10 +121,9 @@ func ExampleGetAssertion() {
 	userID := fido2.RandBytes(32)
 	salt := fido2.RandBytes(32)
 
-	cred, err := fido2.MakeCredential(
-		device,
+	cred, err := device.MakeCredential(
 		cdh,
-		fido2.RP{
+		fido2.RelyingParty{
 			ID: "keys.pub",
 		},
 		fido2.User{
@@ -150,12 +148,11 @@ func ExampleGetAssertion() {
 	log.Printf("Type: %s\n", cred.Type)
 	log.Printf("Sig: %s\n", spew.Sdump(cred.Sig))
 
-	assertion, err := fido2.GetAssertion(
-		device,
+	assertion, err := device.Assertion(
 		"keys.pub",
 		cdh,
 		cred.ID,
-		&fido2.GetAssertionOpts{
+		&fido2.AssertionOpts{
 			Extensions: []fido2.Extension{fido2.HMACSecret},
 			UP:         fido2.True,
 			HMACSalt:   salt,
@@ -176,38 +173,57 @@ func ExampleGetAssertion() {
 	//
 }
 
-// func ExampleCredentialsInfo() {
-// 	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
+func ExampleDevice_Credentials() {
+	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
 
-// 	detected, err := fido2.DetectDevices(100)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	if len(detected) == 0 {
-// 		log.Println("No devices")
-// 		return
-// 	}
+	detected, err := fido2.DetectDevices(100)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(detected) == 0 {
+		log.Println("No devices")
+		return
+	}
 
-// 	log.Printf("Using device: %+v\n", detected[0])
-// 	path := detected[0].Path
-// 	device, err := fido2.NewDevice(path)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	defer device.Close()
+	log.Printf("Using device: %+v\n", detected[0])
+	path := detected[0].Path
+	device, err := fido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer device.Close()
 
-// 	info, err := fido2.Credentials(device, "")
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
+	pin := "12345"
 
-// 	log.Printf("Info: %+v\n", info)
+	info, err := device.CredentialsInfo(pin)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Info: %+v\n", info)
 
-// 	// Output:
-// 	//
-// }
+	rps, err := device.RelyingParties(pin)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, rp := range rps {
+		log.Printf("ID: %s, Name: %s\n", rp.ID, rp.Name)
+		creds, err := device.Credentials(rp.ID, pin)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, cred := range creds {
+			log.Printf("  ID: %s\n", hex.EncodeToString(cred.ID))
+			log.Printf("  Type: %s\n", cred.Type)
+			log.Printf("  Sig: %s\n", hex.EncodeToString(cred.Sig))
+			log.Printf("\n")
+		}
+	}
 
-func ExampleReset() {
+	// Output:
+	//
+}
+
+func ExampleDevice_Reset() {
 	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
 
 	if os.Getenv("RESET_ALLOWED") != "1" {
@@ -232,7 +248,7 @@ func ExampleReset() {
 	defer device.Close()
 
 	log.Printf("Resetting: %+v\n", detected[0])
-	if err := fido2.Reset(device); err != nil {
+	if err := device.Reset(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -241,7 +257,7 @@ func ExampleReset() {
 
 }
 
-func ExampleSetPIN() {
+func ExampleDevice_SetPIN() {
 	fido2.SetLogger(fido2.NewLogger(fido2.DebugLevel))
 
 	detected, err := fido2.DetectDevices(100)
@@ -261,7 +277,7 @@ func ExampleSetPIN() {
 	}
 	defer device.Close()
 
-	if err := fido2.SetPIN(device, "12345", ""); err != nil {
+	if err := device.SetPIN("12345", ""); err != nil {
 		log.Fatal(err)
 	}
 
