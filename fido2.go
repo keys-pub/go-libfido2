@@ -43,25 +43,27 @@ type HIDInfo struct {
 	Flags    uint8
 }
 
-// InfoOpt ...
-type InfoOpt struct {
+// Option ...
+type Option struct {
 	Name  string
-	Value bool
+	Value OptionValue
 }
 
 // DeviceInfo ...
 type DeviceInfo struct {
-	AAGUID     []byte
-	Protocols  []byte
-	Extensions []string
 	Versions   []string
-	Options    []InfoOpt
+	Extensions []string
+	AAGUID     []byte
+	Options    []Option
+	Protocols  []byte
 }
 
 // DeviceType is latest type the device supports.
 type DeviceType string
 
 const (
+	// UnknownDevice ...
+	UnknownDevice DeviceType = ""
 	// FIDO2 ...
 	FIDO2 DeviceType = "fido2"
 	// U2F ...
@@ -86,8 +88,8 @@ type User struct {
 type Attestation struct {
 	ClientDataHash []byte
 	AuthData       []byte
-	ID             []byte
-	Type           COSEAlgorithm
+	CredID         []byte
+	CredType       COSEAlgorithm
 	PubKey         []byte
 	Cert           []byte
 	Sig            []byte
@@ -125,7 +127,7 @@ func (c COSEAlgorithm) String() string {
 	case RS256:
 		return "rs256"
 	default:
-		return fmt.Sprintf("%d", c)
+		return fmt.Sprintf("COSE(%d)", c)
 	}
 }
 
@@ -143,8 +145,8 @@ const (
 // Assertion ...
 type Assertion struct {
 	AuthData   []byte
-	HMACSecret []byte
 	Sig        []byte
+	HMACSecret []byte
 }
 
 func extensionsInt(extensions []Extension) int {
@@ -160,16 +162,16 @@ func extensionsInt(extensions []Extension) int {
 	return exts
 }
 
-// Opt ...
-type Opt string
+// OptionValue ...
+type OptionValue string
 
 const (
 	// Default is device default (omitted).
-	Default Opt = "default"
+	Default OptionValue = ""
 	// True is enabled/yes/true option.
-	True Opt = "true"
+	True OptionValue = "true"
 	// False is disabled/no/false option.
-	False Opt = "false"
+	False OptionValue = "false"
 )
 
 // CredentialsInfo ...
@@ -178,10 +180,10 @@ type CredentialsInfo struct {
 	RKRemaining int64
 }
 
-// DetectDevices detects devices.
-func DetectDevices(max int) ([]*DeviceLocation, error) {
-	logger.Debugf("Detect devices...")
-	cMax := C.size_t(max)
+// DeviceLocations lists found devices.
+func DeviceLocations() ([]*DeviceLocation, error) {
+	logger.Debugf("Finding devices...")
+	cMax := C.size_t(1000)
 	devList := C.fido_dev_info_new(cMax)
 	defer C.fido_dev_info_free(&devList, cMax)
 
@@ -196,7 +198,7 @@ func DetectDevices(max int) ([]*DeviceLocation, error) {
 		return nil, errors.Errorf("fido_dev_info_manifest error %d", cErr)
 	}
 
-	logger.Debugf("Found: %d\n", cFound)
+	logger.Debugf("Found %d devices\n", cFound)
 
 	locs := make([]*DeviceLocation, 0, int(cFound))
 	for i := 0; i < int(cFound); i++ {
@@ -236,9 +238,9 @@ func NewDevice(path string) (*Device, error) {
 }
 
 // Close device.
-func (d *Device) Close() error {
+func (d *Device) Close() {
 	if d.dev == nil {
-		return errors.Errorf("already closed")
+		return
 	}
 	cErr := C.fido_dev_close(d.dev)
 	if cErr != C.FIDO_OK {
@@ -246,7 +248,6 @@ func (d *Device) Close() error {
 	}
 	C.fido_dev_free(&d.dev)
 	d.dev = nil
-	return nil
 }
 
 // Type ...
@@ -258,7 +259,7 @@ func (d *Device) Type() DeviceType {
 }
 
 // ForceType ...
-func ForceType(d *Device, typ DeviceType) error {
+func (d *Device) ForceType(typ DeviceType) error {
 	switch typ {
 	case FIDO2:
 		C.fido_dev_force_fido2(d.dev)
@@ -302,7 +303,7 @@ func (d *Device) Info() (*DeviceInfo, error) {
 	var protocols []byte
 	var extensions []string
 	var versions []string
-	var options []InfoOpt
+	var options []Option
 
 	cAAGUIDLen := C.fido_cbor_info_aaguid_len(info)
 	cAAGUIDPtr := C.fido_cbor_info_aaguid_ptr(info)
@@ -335,9 +336,13 @@ func (d *Device) Info() (*DeviceInfo, error) {
 		names := goStrings(C.int(cOptionsLen), cOptionsNamePtr)
 		values := goBools(C.int(cOptionsLen), cOptionsValuePtr)
 
-		options = make([]InfoOpt, 0, len(names))
+		options = make([]Option, 0, len(names))
 		for i, name := range names {
-			options = append(options, InfoOpt{Name: name, Value: values[i]})
+			val := False
+			if values[i] {
+				val = True
+			}
+			options = append(options, Option{Name: name, Value: val})
 		}
 	}
 
@@ -353,8 +358,8 @@ func (d *Device) Info() (*DeviceInfo, error) {
 // MakeCredentialOpts ...
 type MakeCredentialOpts struct {
 	Extensions []Extension
-	RK         Opt
-	UV         Opt
+	RK         OptionValue
+	UV         OptionValue
 }
 
 // MakeCredential represents authenticatorMakeCredential (0x01).
@@ -364,8 +369,8 @@ func (d *Device) MakeCredential(
 	rp RelyingParty,
 	user User,
 	typ COSEAlgorithm,
-	opts *MakeCredentialOpts,
-	pin string) (*Attestation, error) {
+	pin string,
+	opts *MakeCredentialOpts) (*Attestation, error) {
 
 	if opts == nil {
 		opts = &MakeCredentialOpts{}
@@ -441,8 +446,8 @@ func attestation(cCred *C.fido_cred_t) (*Attestation, error) {
 	at := &Attestation{
 		AuthData:       authData,
 		ClientDataHash: clientDataHashOut,
-		ID:             id,
-		Type:           typOut,
+		CredID:         id,
+		CredType:       typOut,
 		PubKey:         pubKey,
 		Cert:           cert,
 		Sig:            sig,
@@ -513,8 +518,8 @@ func (d *Device) RetryCount() (int, error) {
 // AssertionOpts ...
 type AssertionOpts struct {
 	Extensions []Extension
-	UV         Opt
-	UP         Opt
+	UV         OptionValue
+	UP         OptionValue
 	HMACSalt   []byte
 }
 
@@ -523,8 +528,8 @@ func (d *Device) Assertion(
 	rpID string,
 	clientDataHash []byte,
 	credID []byte,
-	opts *AssertionOpts,
-	pin string) (*Assertion, error) {
+	pin string,
+	opts *AssertionOpts) (*Assertion, error) {
 
 	if opts == nil {
 		opts = &AssertionOpts{}
@@ -709,9 +714,9 @@ func cLen(b []byte) C.size_t {
 	return C.size_t(len(b))
 }
 
-func cOpt(o Opt) C.fido_opt_t {
+func cOpt(o OptionValue) C.fido_opt_t {
 	switch o {
-	case Default, "":
+	case Default:
 		return C.FIDO_OPT_OMIT
 	case True:
 		return C.FIDO_OPT_TRUE
