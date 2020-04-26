@@ -17,7 +17,7 @@ func ExampleDetectDevices() {
 	}
 
 	for _, d := range detected {
-		log.Printf("Device: %+v\n", d)
+		log.Printf("%+v\n", d)
 		device, err := libfido2.NewDevice(d.Path)
 		if err != nil {
 			log.Fatal(err)
@@ -32,7 +32,7 @@ func ExampleDetectDevices() {
 		}
 		log.Printf("CTAPHIDInfo: %+v\n", hidInfo)
 
-		info, err := device.GetInfo()
+		info, err := device.Info()
 		if err != nil {
 			log.Fatal(err)
 		}
