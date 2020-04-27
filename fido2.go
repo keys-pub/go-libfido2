@@ -89,7 +89,7 @@ type Attestation struct {
 	ClientDataHash []byte
 	AuthData       []byte
 	CredID         []byte
-	CredType       COSEAlgorithm
+	CredType       CredentialType
 	PubKey         []byte
 	Cert           []byte
 	Sig            []byte
@@ -99,26 +99,26 @@ type Attestation struct {
 // Credential ...
 type Credential struct {
 	ID   []byte
-	Type COSEAlgorithm
+	Type CredentialType
 	User User
 }
 
-// COSEAlgorithm ...
-type COSEAlgorithm int
+// CredentialType ...
+type CredentialType int
 
 const (
 	// ES256 ...
-	ES256 COSEAlgorithm = -7
+	ES256 CredentialType = -7
 	// EDDSA ...
-	EDDSA COSEAlgorithm = -8
+	EDDSA CredentialType = -8
 
 	// ECDHES256 COSEAlgorithm = -25
 
 	// RS256 ...
-	RS256 COSEAlgorithm = -257
+	RS256 CredentialType = -257
 )
 
-func (c COSEAlgorithm) String() string {
+func (c CredentialType) String() string {
 	switch c {
 	case ES256:
 		return "es256"
@@ -227,6 +227,9 @@ func DeviceLocations() ([]*DeviceLocation, error) {
 
 // NewDevice opens device at path.
 func NewDevice(path string) (*Device, error) {
+	if path == "" {
+		return nil, errors.Errorf("empty device path")
+	}
 	dev := C.fido_dev_new()
 	cErr := C.fido_dev_open(dev, C.CString(path))
 	if cErr != C.FIDO_OK {
@@ -368,7 +371,7 @@ func (d *Device) MakeCredential(
 	clientDataHash []byte,
 	rp RelyingParty,
 	user User,
-	typ COSEAlgorithm,
+	typ CredentialType,
 	pin string,
 	opts *MakeCredentialOpts) (*Attestation, error) {
 
@@ -429,7 +432,7 @@ func attestation(cCred *C.fido_cred_t) (*Attestation, error) {
 	id := C.GoBytes(unsafe.Pointer(cIDPtr), C.int(cIDLen))
 
 	cFormat := C.fido_cred_fmt(cCred)
-	typOut := COSEAlgorithm(C.fido_cred_type(cCred))
+	typOut := CredentialType(C.fido_cred_type(cCred))
 
 	cPubKeyLen := C.fido_cred_pubkey_len(cCred)
 	cPubKeyPtr := C.fido_cred_pubkey_ptr(cCred)
@@ -471,7 +474,7 @@ func credential(cCred *C.fido_cred_t) (*Credential, error) {
 	id := C.GoBytes(unsafe.Pointer(cIDPtr), C.int(cIDLen))
 
 	// cFormat := C.fido_cred_fmt(cCred)
-	typOut := COSEAlgorithm(C.fido_cred_type(cCred))
+	typOut := CredentialType(C.fido_cred_type(cCred))
 
 	cred := &Credential{
 		ID:   id,
@@ -769,8 +772,11 @@ var ErrUnsupportedOption = errors.New("unsupported option")
 // ErrPinInvalid if pin is wrong.
 var ErrPinInvalid = errors.New("pin invalid")
 
-// ErrRXNotCBOR  rx not CBOR.
+// ErrRXNotCBOR rx not CBOR.
 var ErrRXNotCBOR = errors.New("rx error: not CBOR")
+
+// ErrInternal internal error.
+var ErrInternal = errors.New("internal error")
 
 func errFromCode(code C.int) error {
 	switch code {
@@ -798,6 +804,8 @@ func errFromCode(code C.int) error {
 		return ErrPinInvalid
 	case C.FIDO_ERR_RX_NOT_CBOR:
 		return ErrRXNotCBOR
+	case C.FIDO_ERR_INTERNAL:
+		return ErrInternal
 	default:
 		return ErrCode{code: int(code)}
 	}
