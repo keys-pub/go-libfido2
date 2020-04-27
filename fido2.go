@@ -245,20 +245,16 @@ func (d *Device) Close() {
 	if d.dev == nil {
 		return
 	}
-	cErr := C.fido_dev_close(d.dev)
-	if cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_close(d.dev); cErr != C.FIDO_OK {
 		logger.Errorf("%v", errors.Wrap(errFromCode(cErr), "failed to close"))
 	}
 	C.fido_dev_free(&d.dev)
 	d.dev = nil
 }
 
-// Type ...
-func (d *Device) Type() DeviceType {
-	if C.fido_dev_is_fido2(d.dev) {
-		return FIDO2
-	}
-	return U2F
+// IsFIDO2 ...
+func (d *Device) IsFIDO2() bool {
+	return bool(C.fido_dev_is_fido2(d.dev))
 }
 
 // ForceType ...
@@ -379,15 +375,19 @@ func (d *Device) MakeCredential(
 		opts = &MakeCredentialOpts{}
 	}
 
+	if rp.ID == "" {
+		return nil, errors.Errorf("no rp.ID specified")
+	}
+
 	cCred := C.fido_cred_new()
 	defer C.fido_cred_free(&cCred)
 	if cErr := C.fido_cred_set_clientdata_hash(cCred, cBytes(clientDataHash), cLen(clientDataHash)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set client data hash")
 	}
-	if cErr := C.fido_cred_set_rp(cCred, cString(rp.ID), cString(rp.Name)); cErr != C.FIDO_OK {
+	if cErr := C.fido_cred_set_rp(cCred, C.CString(rp.ID), C.CString(rp.Name)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set rp")
 	}
-	if cErr := C.fido_cred_set_user(cCred, cBytes(user.ID), cLen(user.ID), cString(user.Name), cString(user.DisplayName), cString(user.Icon)); cErr != C.FIDO_OK {
+	if cErr := C.fido_cred_set_user(cCred, cBytes(user.ID), cLen(user.ID), C.CString(user.Name), C.CString(user.DisplayName), C.CString(user.Icon)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set user")
 	}
 	if cErr := C.fido_cred_set_type(cCred, C.int(typ)); cErr != C.FIDO_OK {
@@ -406,7 +406,7 @@ func (d *Device) MakeCredential(
 		}
 	}
 
-	if cErr := C.fido_dev_make_cred(d.dev, cCred, cString(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_make_cred(d.dev, cCred, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to make credential")
 	}
 
@@ -490,7 +490,7 @@ func credential(cCred *C.fido_cred_t) (*Credential, error) {
 
 // SetPIN ...
 func (d *Device) SetPIN(pin string, old string) error {
-	if cErr := C.fido_dev_set_pin(d.dev, cString(pin), cString(old)); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_set_pin(d.dev, C.CString(pin), cStringOrNil(old)); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to set pin")
 	}
 	return nil
@@ -537,11 +537,14 @@ func (d *Device) Assertion(
 	if opts == nil {
 		opts = &AssertionOpts{}
 	}
+	if rpID == "" {
+		return nil, errors.Errorf("no rpID specified")
+	}
 
 	cAssert := C.fido_assert_new()
 	defer C.fido_assert_free(&cAssert)
 
-	if cErr := C.fido_assert_set_rp(cAssert, cString(rpID)); cErr != C.FIDO_OK {
+	if cErr := C.fido_assert_set_rp(cAssert, C.CString(rpID)); cErr != C.FIDO_OK {
 		return nil, errors.Wrapf(errFromCode(cErr), "failed to set assertion RP ID")
 	}
 	if cErr := C.fido_assert_set_clientdata_hash(cAssert, cBytes(clientDataHash), cLen(clientDataHash)); cErr != C.FIDO_OK {
@@ -570,7 +573,7 @@ func (d *Device) Assertion(
 	}
 
 	// Get assertion
-	if cErr := C.fido_dev_get_assert(d.dev, cAssert, cString(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_get_assert(d.dev, cAssert, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrapf(errFromCode(cErr), "failed to get assertion")
 	}
 
@@ -621,10 +624,11 @@ func (d *Device) CredentialsInfo(pin string) (*CredentialsInfo, error) {
 	if pin == "" {
 		return nil, errors.Errorf("pin is required")
 	}
+
 	cCredMeta := C.fido_credman_metadata_new()
 	defer C.fido_credman_metadata_free(&cCredMeta)
 
-	if cErr := C.fido_credman_get_dev_metadata(d.dev, cCredMeta, cString(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_credman_get_dev_metadata(d.dev, cCredMeta, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to get credentials info")
 	}
 
@@ -639,10 +643,13 @@ func (d *Device) CredentialsInfo(pin string) (*CredentialsInfo, error) {
 
 // Credentials ...
 func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
+	if rpID == "" {
+		return nil, errors.Errorf("no rpID specified")
+	}
 	cRK := C.fido_credman_rk_new()
 	defer C.fido_credman_rk_free(&cRK)
 
-	if cErr := C.fido_credman_get_dev_rk(d.dev, cString(rpID), cRK, cString(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_credman_get_dev_rk(d.dev, C.CString(rpID), cRK, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to get resident key info")
 	}
 
@@ -664,7 +671,7 @@ func (d *Device) RelyingParties(pin string) ([]*RelyingParty, error) {
 	cRP := C.fido_credman_rp_new()
 	defer C.fido_credman_rp_free(&cRP)
 
-	if cErr := C.fido_credman_get_dev_rp(d.dev, cRP, cString(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_credman_get_dev_rp(d.dev, cRP, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to get relying party info")
 	}
 
@@ -702,7 +709,7 @@ func goBools(argc C.int, argv *C.bool) []bool {
 	return gobools
 }
 
-func cString(s string) *C.char {
+func cStringOrNil(s string) *C.char {
 	if s == "" {
 		return nil
 	}
@@ -775,6 +782,9 @@ var ErrPinInvalid = errors.New("pin invalid")
 // ErrRXNotCBOR rx not CBOR.
 var ErrRXNotCBOR = errors.New("rx error: not CBOR")
 
+// ErrPinPolicyViolation if PIN policy violation.
+var ErrPinPolicyViolation = errors.New("pin policy violation")
+
 // ErrInternal internal error.
 var ErrInternal = errors.New("internal error")
 
@@ -806,6 +816,8 @@ func errFromCode(code C.int) error {
 		return ErrRXNotCBOR
 	case C.FIDO_ERR_INTERNAL:
 		return ErrInternal
+	case C.FIDO_ERR_PIN_POLICY_VIOLATION:
+		return ErrPinPolicyViolation
 	default:
 		return ErrCode{code: int(code)}
 	}

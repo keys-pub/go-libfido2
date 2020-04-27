@@ -27,7 +27,7 @@ func ExampleDeviceLocations() {
 		}
 		defer device.Close()
 
-		log.Printf("Type: %s\n", device.Type())
+		log.Printf("FIDO2? %t\n", device.IsFIDO2())
 
 		hidInfo, err := device.CTAPHIDInfo()
 		if err != nil {

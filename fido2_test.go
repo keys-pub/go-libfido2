@@ -14,4 +14,16 @@ func TestDeviceLocations(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("Found %d devices", len(locs))
+
+	for _, loc := range locs {
+		device, err := libfido2.NewDevice(loc.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := device.Info()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("Info: %+v", info)
+	}
 }
