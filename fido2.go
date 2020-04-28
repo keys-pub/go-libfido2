@@ -1,7 +1,7 @@
 package libfido2
 
 /*
-#cgo darwin LDFLAGS: -L${SRCDIR}/darwin/lib -lfido2
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework IOKit ${SRCDIR}/darwin/lib/libfido2.a ${SRCDIR}/darwin/lib/libssl.a ${SRCDIR}/darwin/lib/libcrypto.a ${SRCDIR}/darwin/lib/libcbor.a
 #cgo darwin CFLAGS: -I${SRCDIR}/darwin/include
 #cgo linux LDFLAGS: -L${SRCDIR}/linux/lib -lfido2
 #cgo linux CFLAGS: -I${SRCDIR}/linux/include
@@ -155,8 +155,8 @@ func extensionsInt(extensions []Extension) int {
 		switch extension {
 		case HMACSecret:
 			exts |= int(C.FIDO_EXT_HMAC_SECRET)
-			// case CredProtect:
-			// 	exts |= int(C.FIDO_EXT_CRED_PROTECT)
+		case CredProtect:
+			exts |= int(C.FIDO_EXT_CRED_PROTECT)
 		}
 	}
 	return exts
