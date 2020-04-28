@@ -1,7 +1,7 @@
 package libfido2
 
 /*
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework IOKit ${SRCDIR}/darwin/lib/libfido2.a ${SRCDIR}/darwin/lib/libcbor.a ${SRCDIR}/darwin/lib/libssl.a ${SRCDIR}/darwin/lib/libcrypto.a
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework IOKit ${SRCDIR}/darwin/lib/libfido2.a ${SRCDIR}/darwin/lib/libssl.a ${SRCDIR}/darwin/lib/libcrypto.a ${SRCDIR}/darwin/lib/libcbor.a
 #cgo darwin CFLAGS: -I${SRCDIR}/darwin/include
 #cgo linux LDFLAGS: ${SRCDIR}/linux/lib/libfido2.a ${SRCDIR}/linux/lib/libcbor.a ${SRCDIR}/linux/lib/libssl.a ${SRCDIR}/linux/lib/libcrypto.a
 #cgo linux CFLAGS: -I${SRCDIR}/linux/include
