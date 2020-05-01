@@ -791,6 +791,9 @@ var ErrInternal = errors.New("internal error")
 // ErrNoCredentials if no credentials.
 var ErrNoCredentials = errors.New("no credentials")
 
+// ErrPinAuthBlocked if too many PIN failures.
+var ErrPinAuthBlocked = errors.New("pin auth blocked")
+
 func errFromCode(code C.int) error {
 	switch code {
 	case C.FIDO_ERR_TX:
@@ -823,6 +826,8 @@ func errFromCode(code C.int) error {
 		return ErrPinPolicyViolation
 	case C.FIDO_ERR_NO_CREDENTIALS:
 		return ErrNoCredentials
+	case C.FIDO_ERR_PIN_AUTH_BLOCKED:
+		return ErrPinAuthBlocked
 	default:
 		return ErrCode{code: int(code)}
 	}
