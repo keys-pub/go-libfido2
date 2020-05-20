@@ -377,7 +377,9 @@ const (
 )
 
 // MakeCredential represents authenticatorMakeCredential (0x01).
-// https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorMakeCredential
+// RP, User ID and name are required by some devices, so we return an error if missing.
+//
+// See https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorMakeCredential
 func (d *Device) MakeCredential(
 	clientDataHash []byte,
 	rp RelyingParty,
@@ -391,7 +393,16 @@ func (d *Device) MakeCredential(
 	}
 
 	if rp.ID == "" {
-		return nil, errors.Errorf("no rp.ID specified")
+		return nil, errors.Errorf("no rp id specified")
+	}
+	if rp.Name == "" {
+		return nil, errors.Errorf("no rp name specified")
+	}
+	if len(user.ID) == 0 {
+		return nil, errors.Errorf("no user id specified")
+	}
+	if user.Name == "" {
+		return nil, errors.Errorf("no user name specified")
 	}
 
 	cCred := C.fido_cred_new()
@@ -399,10 +410,10 @@ func (d *Device) MakeCredential(
 	if cErr := C.fido_cred_set_clientdata_hash(cCred, cBytes(clientDataHash), cLen(clientDataHash)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set client data hash")
 	}
-	if cErr := C.fido_cred_set_rp(cCred, C.CString(rp.ID), C.CString(rp.Name)); cErr != C.FIDO_OK {
+	if cErr := C.fido_cred_set_rp(cCred, C.CString(rp.ID), cStringOrNil(rp.Name)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set rp")
 	}
-	if cErr := C.fido_cred_set_user(cCred, cBytes(user.ID), cLen(user.ID), C.CString(user.Name), C.CString(user.DisplayName), C.CString(user.Icon)); cErr != C.FIDO_OK {
+	if cErr := C.fido_cred_set_user(cCred, cBytes(user.ID), cLen(user.ID), cStringOrNil(user.Name), cStringOrNil(user.DisplayName), cStringOrNil(user.Icon)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set user")
 	}
 	if cErr := C.fido_cred_set_type(cCred, C.int(typ)); cErr != C.FIDO_OK {
@@ -824,6 +835,9 @@ var ErrPINNotSet = errors.New("pin not set")
 // ErrInvalidCommand if command is not supported.
 var ErrInvalidCommand = errors.New("invalid command")
 
+// ErrInvalidLength if invalid length.
+var ErrInvalidLength = errors.New("invalid length")
+
 // ErrInvalidCredential if credential is invalid.
 var ErrInvalidCredential = errors.New("invalid credential")
 
@@ -834,7 +848,7 @@ var ErrUnsupportedOption = errors.New("unsupported option")
 var ErrPinInvalid = errors.New("pin invalid")
 
 // ErrRXNotCBOR rx not CBOR.
-var ErrRXNotCBOR = errors.New("rx error: not CBOR")
+var ErrRXNotCBOR = errors.New("rx not CBOR")
 
 // ErrPinPolicyViolation if PIN policy violation.
 var ErrPinPolicyViolation = errors.New("pin policy violation")
@@ -851,24 +865,37 @@ var ErrPinAuthBlocked = errors.New("pin auth blocked")
 // ErrPinRequired if PIN is required.
 var ErrPinRequired = errors.New("pin required")
 
+// ErrMissingParameter if missing parameter.
+var ErrMissingParameter = errors.New("missing parameter")
+
+// ErrUPRequired if user presence is required.
+var ErrUPRequired = errors.New("up required")
+
+// ErrRXInvalidCBOR if receiving invalid CBOR.
+var ErrRXInvalidCBOR = errors.New("rx invalid cbor")
+
 func errFromCode(code C.int) error {
 	switch code {
-	case C.FIDO_ERR_TX:
+	case C.FIDO_ERR_TX: // -1
 		return ErrTX
-	case C.FIDO_ERR_RX:
+	case C.FIDO_ERR_RX: // -2
 		return ErrRX
-	case C.FIDO_ERR_INVALID_ARGUMENT:
+	case C.FIDO_ERR_INVALID_ARGUMENT: // -7
 		return ErrInvalidArgument
-	case C.FIDO_ERR_USER_PRESENCE_REQUIRED:
+	case C.FIDO_ERR_USER_PRESENCE_REQUIRED: // -8
 		return ErrUserPresenceRequired
+	case C.FIDO_ERR_INVALID_COMMAND: // 0x01
+		return ErrInvalidCommand
+	case C.FIDO_ERR_INVALID_LENGTH: // 0x03
+		return ErrInvalidLength
+	case C.FIDO_ERR_MISSING_PARAMETER:
+		return ErrMissingParameter // 0x14
 	case C.FIDO_ERR_NOT_ALLOWED:
 		return ErrNotAllowed
 	case C.FIDO_ERR_ACTION_TIMEOUT:
 		return ErrActionTimeout
 	case C.FIDO_ERR_PIN_NOT_SET:
 		return ErrPINNotSet
-	case C.FIDO_ERR_INVALID_COMMAND:
-		return ErrInvalidCommand
 	case C.FIDO_ERR_INVALID_CREDENTIAL:
 		return ErrInvalidCredential
 	case C.FIDO_ERR_UNSUPPORTED_OPTION:
@@ -887,6 +914,10 @@ func errFromCode(code C.int) error {
 		return ErrPinAuthBlocked
 	case C.FIDO_ERR_PIN_REQUIRED:
 		return ErrPinRequired
+	case C.FIDO_ERR_UP_REQUIRED:
+		return ErrUPRequired
+	case C.FIDO_ERR_RX_INVALID_CBOR:
+		return ErrRXInvalidCBOR
 	default:
 		return ErrCode{code: int(code)}
 	}

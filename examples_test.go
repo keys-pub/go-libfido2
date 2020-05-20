@@ -1,6 +1,7 @@
 package libfido2_test
 
 import (
+	"bytes"
 	"encoding/hex"
 	"log"
 	"os"
@@ -298,5 +299,123 @@ func ExampleDevice_SetPIN() {
 
 	// Output:
 	//
+}
 
+func ExampleDevice_MakeCredential_hmacSecret() {
+	locs, err := libfido2.DeviceLocations()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(locs) == 0 {
+		log.Fatal("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", locs[0])
+	path := locs[0].Path
+	device, err := libfido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer device.Close()
+
+	cdh := bytes.Repeat([]byte{0x01}, 32)
+	rpID := "keys.pub"
+	pin := "12345"
+
+	attest, err := device.MakeCredential(
+		cdh,
+		libfido2.RelyingParty{
+			ID:   rpID,
+			Name: "hmac-secret",
+		},
+		libfido2.User{
+			ID:   libfido2.RandBytes(16),
+			Name: "hmac-secret",
+		},
+		libfido2.ES256, // Algorithm
+		pin,
+		&libfido2.MakeCredentialOpts{
+			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
+			RK:         libfido2.True,
+			// UV:          libfido2.True,
+			// CredProtect: libfido2.CredProtectUVRequired,
+		},
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Credential ID: %s\n", hex.EncodeToString(attest.CredID))
+}
+
+type testVector struct {
+	CredID string
+	Secret string
+}
+
+func ExampleDevice_Assertion_hmacSecret() {
+	locs, err := libfido2.DeviceLocations()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(locs) == 0 {
+		log.Fatalf("No devices")
+		return
+	}
+	log.Printf("Using device: %+v\n", locs[0])
+	path := locs[0].Path
+	device, err := libfido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer device.Close()
+
+	name := locs[0].Product + "/" + locs[0].Manufacturer
+
+	cdh := bytes.Repeat([]byte{0x01}, 32)
+	rpID := "keys.pub"
+	pin := "12345"
+
+	testVectors := map[string]testVector{
+		"SoloKey 4.0/SoloKeys": testVector{
+			CredID: "91874f4c3d580370bf5b5301130ecc034f5927d955f5399ebad267f5666c78598942d489f10d4f4780fad392eb2962d065bdd3574375e80c42218dadd199ed3ffe7deb010000",
+			Secret: "dd67d3aa73b13b7bb71ad0fe13cf8a247632a3508d7c9906ef6dc823906c3103",
+		},
+		"Security Key by Yubico/Yubico": testVector{
+			CredID: "c4fe75012ed137a0afcaa59ab36f0722b9b05849b2203fc4ba4f304033015eaafdbee823ee42dce88b4ae4d943926de3cc93e797004d108ed2465c675ae568e6",
+			Secret: "f3d37d52ca7a12cf05c34bd3c13ddc3288b723018697347e6ac5ea79b7d3cc83",
+		},
+	}
+
+	testVector, ok := testVectors[name]
+	if !ok {
+		log.Fatalf("No test vector found for %s", name)
+	}
+
+	credID, err := hex.DecodeString(testVector.CredID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	salt := bytes.Repeat([]byte{0x02}, 32)
+
+	assertion, err := device.Assertion(
+		rpID,
+		cdh,
+		credID,
+		pin,
+		&libfido2.AssertionOpts{
+			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
+			// UP:         libfido2.True, // Required for some devices
+			// UV:         libfido2.True, // Required for some devices
+			HMACSalt: salt,
+		},
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if testVector.Secret != hex.EncodeToString(assertion.HMACSecret) {
+		log.Fatalf("Expected %s", testVector.Secret)
+	}
 }
