@@ -135,11 +135,11 @@ func (c CredentialType) String() string {
 type Extension string
 
 const (
-	// HMACSecret is HMAC secret extension.
+	// HMACSecretExtension for HMAC secret extension.
 	// https://fidoalliance.org/specs/fido-v2.0-rd-20180702/fido-client-to-authenticator-protocol-v2.0-rd-20180702.html#sctn-hmac-secret-extension
-	HMACSecret Extension = "hmac-secret"
-	// CredProtect ...
-	CredProtect Extension = "credProtect"
+	HMACSecretExtension Extension = "hmac-secret"
+	// CredProtectExtension for credProtect extension.
+	CredProtectExtension Extension = "credProtect"
 )
 
 // Assertion ...
@@ -153,16 +153,16 @@ func extensionsInt(extensions []Extension) int {
 	exts := 0
 	for _, extension := range extensions {
 		switch extension {
-		case HMACSecret:
+		case HMACSecretExtension:
 			exts |= int(C.FIDO_EXT_HMAC_SECRET)
-		case CredProtect:
+		case CredProtectExtension:
 			exts |= int(C.FIDO_EXT_CRED_PROTECT)
 		}
 	}
 	return exts
 }
 
-// OptionValue ...
+// OptionValue is value for option.
 type OptionValue string
 
 const (
@@ -356,10 +356,25 @@ func (d *Device) Info() (*DeviceInfo, error) {
 
 // MakeCredentialOpts ...
 type MakeCredentialOpts struct {
-	Extensions []Extension
-	RK         OptionValue
-	UV         OptionValue
+	Extensions  []Extension
+	RK          OptionValue
+	UV          OptionValue
+	CredProtect CredProtect
 }
+
+// CredProtect option if extension is supported.
+type CredProtect string
+
+const (
+	// CredProtectNone if unset.
+	CredProtectNone CredProtect = ""
+	// CredProtectUVOptional UV optional
+	CredProtectUVOptional CredProtect = "uv-optional"
+	// CredProtectUVOptionalWithID UV optional with ID
+	CredProtectUVOptionalWithID CredProtect = "uv-optional-with-id"
+	// CredProtectUVRequired UV required
+	CredProtectUVRequired CredProtect = "uv-required"
+)
 
 // MakeCredential represents authenticatorMakeCredential (0x01).
 // https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorMakeCredential
@@ -393,11 +408,29 @@ func (d *Device) MakeCredential(
 	if cErr := C.fido_cred_set_type(cCred, C.int(typ)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set type")
 	}
-	if cErr := C.fido_cred_set_rk(cCred, cOpt(opts.RK)); cErr != C.FIDO_OK {
+	cRK, err := cOpt(opts.RK)
+	if err != nil {
+		return nil, err
+	}
+	if cErr := C.fido_cred_set_rk(cCred, cRK); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set rk")
 	}
-	if cErr := C.fido_cred_set_uv(cCred, cOpt(opts.UV)); cErr != C.FIDO_OK {
+	cUV, err := cOpt(opts.UV)
+	if err != nil {
+		return nil, err
+	}
+	if cErr := C.fido_cred_set_uv(cCred, cUV); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set uv")
+	}
+
+	if opts.CredProtect != CredProtectNone {
+		cProt, err := cCredProtect(opts.CredProtect)
+		if err != nil {
+			return nil, err
+		}
+		if cErr := C.fido_cred_set_prot(cCred, cProt); cErr != C.FIDO_OK {
+			return nil, errors.Wrap(errFromCode(cErr), "failed to set prot")
+		}
 	}
 
 	if exts := extensionsInt(opts.Extensions); exts > 0 {
@@ -560,10 +593,18 @@ func (d *Device) Assertion(
 			return nil, errors.Wrap(errFromCode(cErr), "failed to set extensions")
 		}
 	}
-	if cErr := C.fido_assert_set_uv(cAssert, cOpt(opts.UV)); cErr != C.FIDO_OK {
+	cUV, err := cOpt(opts.UP)
+	if err != nil {
+		return nil, err
+	}
+	if cErr := C.fido_assert_set_uv(cAssert, cUV); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set uv")
 	}
-	if cErr := C.fido_assert_set_up(cAssert, cOpt(opts.UP)); cErr != C.FIDO_OK {
+	cUP, err := cOpt(opts.UP)
+	if err != nil {
+		return nil, err
+	}
+	if cErr := C.fido_assert_set_up(cAssert, cUP); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to set up")
 	}
 	if opts.HMACSalt != nil {
@@ -724,16 +765,29 @@ func cLen(b []byte) C.size_t {
 	return C.size_t(len(b))
 }
 
-func cOpt(o OptionValue) C.fido_opt_t {
+func cOpt(o OptionValue) (C.fido_opt_t, error) {
 	switch o {
 	case Default:
-		return C.FIDO_OPT_OMIT
+		return C.FIDO_OPT_OMIT, nil
 	case True:
-		return C.FIDO_OPT_TRUE
+		return C.FIDO_OPT_TRUE, nil
 	case False:
-		return C.FIDO_OPT_FALSE
+		return C.FIDO_OPT_FALSE, nil
 	default:
-		panic("invalid opt")
+		return C.FIDO_OPT_OMIT, errors.Errorf("invalid cred protect")
+	}
+}
+
+func cCredProtect(c CredProtect) (C.int, error) {
+	switch c {
+	case CredProtectUVOptional:
+		return C.FIDO_CRED_PROT_UV_OPTIONAL, nil
+	case CredProtectUVOptionalWithID:
+		return C.FIDO_CRED_PROT_UV_OPTIONAL_WITH_ID, nil
+	case CredProtectUVRequired:
+		return C.FIDO_CRED_PROT_UV_REQUIRED, nil
+	default:
+		return C.FIDO_CRED_PROT_UV_OPTIONAL, errors.Errorf("invalid cred protect")
 	}
 }
 
@@ -794,6 +848,9 @@ var ErrNoCredentials = errors.New("no credentials")
 // ErrPinAuthBlocked if too many PIN failures.
 var ErrPinAuthBlocked = errors.New("pin auth blocked")
 
+// ErrPinRequired if PIN is required.
+var ErrPinRequired = errors.New("pin required")
+
 func errFromCode(code C.int) error {
 	switch code {
 	case C.FIDO_ERR_TX:
@@ -828,6 +885,8 @@ func errFromCode(code C.int) error {
 		return ErrNoCredentials
 	case C.FIDO_ERR_PIN_AUTH_BLOCKED:
 		return ErrPinAuthBlocked
+	case C.FIDO_ERR_PIN_REQUIRED:
+		return ErrPinRequired
 	default:
 		return ErrCode{code: int(code)}
 	}

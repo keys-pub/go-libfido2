@@ -139,7 +139,7 @@ func ExampleDevice_Assertion() {
 		libfido2.ES256, // Algorithm
 		"12345",        // Pin
 		&libfido2.MakeCredentialOpts{
-			Extensions: []libfido2.Extension{libfido2.HMACSecret},
+			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
 			RK:         libfido2.True,
 		},
 	)
@@ -160,7 +160,7 @@ func ExampleDevice_Assertion() {
 		attest.CredID,
 		"12345", // Pin
 		&libfido2.AssertionOpts{
-			Extensions: []libfido2.Extension{libfido2.HMACSecret},
+			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
 			UP:         libfido2.True,
 			HMACSalt:   salt,
 		},
