@@ -27,12 +27,12 @@ func ExampleDevice_Assertion() {
 
     cdh := libfido2.RandBytes(32)
     userID := libfido2.RandBytes(32)
-    salt := libfido2.RandBytes(32)
 
     attest, err := device.MakeCredential(
         cdh,
         libfido2.RelyingParty{
             ID: "keys.pub",
+            Name: "keys.pub",
         },
         libfido2.User{
             ID:   userID,
@@ -56,6 +56,7 @@ func ExampleDevice_Assertion() {
     log.Printf("Type: %s\n", attest.CredType)
     log.Printf("Sig: %s\n", hex.EncodeToString(attest.Sig))
 
+    hmacSalt := libfido2.RandBytes(32)
     assertion, err := device.Assertion(
         "keys.pub",
         cdh,
@@ -64,7 +65,7 @@ func ExampleDevice_Assertion() {
         &libfido2.AssertionOpts{
             Extensions: []libfido2.Extension{libfido2.HMACSecret},
             UP:         libfido2.True,
-            HMACSalt:   salt,
+            HMACSalt:   hmacSalt,
         },
     )
     if err != nil {
