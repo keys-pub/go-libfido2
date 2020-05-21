@@ -88,8 +88,8 @@ type User struct {
 type Attestation struct {
 	ClientDataHash []byte
 	AuthData       []byte
-	CredID         []byte
-	CredType       CredentialType
+	CredentialID   []byte
+	CredentialType CredentialType
 	PubKey         []byte
 	Cert           []byte
 	Sig            []byte
@@ -493,8 +493,8 @@ func attestation(cCred *C.fido_cred_t) (*Attestation, error) {
 	at := &Attestation{
 		AuthData:       authData,
 		ClientDataHash: clientDataHashOut,
-		CredID:         id,
-		CredType:       typOut,
+		CredentialID:   id,
+		CredentialType: typOut,
 		PubKey:         pubKey,
 		Cert:           cert,
 		Sig:            sig,
@@ -574,7 +574,7 @@ type AssertionOpts struct {
 func (d *Device) Assertion(
 	rpID string,
 	clientDataHash []byte,
-	credID []byte,
+	credentialID []byte,
 	pin string,
 	opts *AssertionOpts) (*Assertion, error) {
 
@@ -594,8 +594,8 @@ func (d *Device) Assertion(
 	if cErr := C.fido_assert_set_clientdata_hash(cAssert, cBytes(clientDataHash), cLen(clientDataHash)); cErr != C.FIDO_OK {
 		return nil, errors.Wrapf(errFromCode(cErr), "failed to set client data hash")
 	}
-	if credID != nil {
-		if cErr := C.fido_assert_allow_cred(cAssert, cBytes(credID), cLen(credID)); cErr != C.FIDO_OK {
+	if credentialID != nil {
+		if cErr := C.fido_assert_allow_cred(cAssert, cBytes(credentialID), cLen(credentialID)); cErr != C.FIDO_OK {
 			return nil, errors.Wrapf(errFromCode(cErr), "failed to set allowed credentials")
 		}
 	}

@@ -52,15 +52,15 @@ func ExampleDevice_Assertion() {
     log.Printf("Attestation:\n")
     log.Printf("AuthData: %s\n", hex.EncodeToString(attest.AuthData))
     log.Printf("ClientDataHash: %s\n", hex.EncodeToString(attest.ClientDataHash))
-    log.Printf("ID: %s\n", hex.EncodeToString(attest.CredID))
-    log.Printf("Type: %s\n", attest.CredType)
+    log.Printf("ID: %s\n", hex.EncodeToString(attest.CredentialID))
+    log.Printf("Type: %s\n", attest.CredentialType)
     log.Printf("Sig: %s\n", hex.EncodeToString(attest.Sig))
 
     hmacSalt := libfido2.RandBytes(32)
     assertion, err := device.Assertion(
         "keys.pub",
         cdh,
-        attest.CredID,
+        attest.CredentialID,
         "12345", // Pin
         &libfido2.AssertionOpts{
             Extensions: []libfido2.Extension{libfido2.HMACSecret},

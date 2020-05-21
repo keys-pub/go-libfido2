@@ -95,8 +95,8 @@ func ExampleDevice_MakeCredential() {
 	log.Printf("Attestation:\n")
 	log.Printf("AuthData: %s\n", hex.EncodeToString(attest.AuthData))
 	log.Printf("ClientDataHash: %s\n", hex.EncodeToString(attest.ClientDataHash))
-	log.Printf("ID: %s\n", hex.EncodeToString(attest.CredID))
-	log.Printf("Type: %d\n", attest.CredType)
+	log.Printf("ID: %s\n", hex.EncodeToString(attest.CredentialID))
+	log.Printf("Type: %d\n", attest.CredentialType)
 	log.Printf("Sig: %s\n", hex.EncodeToString(attest.Sig))
 
 	// Output:
@@ -151,14 +151,14 @@ func ExampleDevice_Assertion() {
 	log.Printf("Attestation:\n")
 	log.Printf("AuthData: %s\n", hex.EncodeToString(attest.AuthData))
 	log.Printf("ClientDataHash: %s\n", hex.EncodeToString(attest.ClientDataHash))
-	log.Printf("ID: %s\n", hex.EncodeToString(attest.CredID))
-	log.Printf("Type: %s\n", attest.CredType)
+	log.Printf("ID: %s\n", hex.EncodeToString(attest.CredentialID))
+	log.Printf("Type: %s\n", attest.CredentialType)
 	log.Printf("Sig: %s\n", hex.EncodeToString(attest.Sig))
 
 	assertion, err := device.Assertion(
 		"keys.pub",
 		cdh,
-		attest.CredID,
+		attest.CredentialID,
 		"12345", // Pin
 		&libfido2.AssertionOpts{
 			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
@@ -346,12 +346,12 @@ func ExampleDevice_MakeCredential_hmacSecret() {
 		log.Fatal(err)
 	}
 
-	log.Printf("Credential ID: %s\n", hex.EncodeToString(attest.CredID))
+	log.Printf("Credential ID: %s\n", hex.EncodeToString(attest.CredentialID))
 }
 
 type testVector struct {
-	CredID string
-	Secret string
+	CredentialID string
+	Secret       string
 }
 
 func ExampleDevice_Assertion_hmacSecret() {
@@ -379,12 +379,12 @@ func ExampleDevice_Assertion_hmacSecret() {
 
 	testVectors := map[string]testVector{
 		"SoloKey 4.0/SoloKeys": testVector{
-			CredID: "91874f4c3d580370bf5b5301130ecc034f5927d955f5399ebad267f5666c78598942d489f10d4f4780fad392eb2962d065bdd3574375e80c42218dadd199ed3ffe7deb010000",
-			Secret: "dd67d3aa73b13b7bb71ad0fe13cf8a247632a3508d7c9906ef6dc823906c3103",
+			CredentialID: "91874f4c3d580370bf5b5301130ecc034f5927d955f5399ebad267f5666c78598942d489f10d4f4780fad392eb2962d065bdd3574375e80c42218dadd199ed3ffe7deb010000",
+			Secret:       "dd67d3aa73b13b7bb71ad0fe13cf8a247632a3508d7c9906ef6dc823906c3103",
 		},
 		"Security Key by Yubico/Yubico": testVector{
-			CredID: "c4fe75012ed137a0afcaa59ab36f0722b9b05849b2203fc4ba4f304033015eaafdbee823ee42dce88b4ae4d943926de3cc93e797004d108ed2465c675ae568e6",
-			Secret: "f3d37d52ca7a12cf05c34bd3c13ddc3288b723018697347e6ac5ea79b7d3cc83",
+			CredentialID: "c4fe75012ed137a0afcaa59ab36f0722b9b05849b2203fc4ba4f304033015eaafdbee823ee42dce88b4ae4d943926de3cc93e797004d108ed2465c675ae568e6",
+			Secret:       "f3d37d52ca7a12cf05c34bd3c13ddc3288b723018697347e6ac5ea79b7d3cc83",
 		},
 	}
 
@@ -393,7 +393,7 @@ func ExampleDevice_Assertion_hmacSecret() {
 		log.Fatalf("No test vector found for %s", name)
 	}
 
-	credID, err := hex.DecodeString(testVector.CredID)
+	credentialID, err := hex.DecodeString(testVector.CredentialID)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -402,7 +402,7 @@ func ExampleDevice_Assertion_hmacSecret() {
 	assertion, err := device.Assertion(
 		rpID,
 		cdh,
-		credID,
+		credentialID,
 		pin,
 		&libfido2.AssertionOpts{
 			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
