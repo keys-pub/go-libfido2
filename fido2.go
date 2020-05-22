@@ -176,6 +176,7 @@ type CredentialsInfo struct {
 
 // DeviceLocations lists found devices.
 func DeviceLocations() ([]*DeviceLocation, error) {
+	logger.Debugf("Finding devices...")
 	cMax := C.size_t(1000)
 	devList := C.fido_dev_info_new(cMax)
 	defer C.fido_dev_info_free(&devList, cMax)
@@ -190,6 +191,8 @@ func DeviceLocations() ([]*DeviceLocation, error) {
 	if cErr != C.FIDO_OK {
 		return nil, errors.Errorf("fido_dev_info_manifest error %d", cErr)
 	}
+
+	logger.Debugf("Found %d devices\n", cFound)
 
 	locs := make([]*DeviceLocation, 0, int(cFound))
 	for i := 0; i < int(cFound); i++ {
@@ -237,8 +240,7 @@ func (d *Device) Close() {
 		return
 	}
 	if cErr := C.fido_dev_close(d.dev); cErr != C.FIDO_OK {
-		// Log error?
-		// log.Printf("%v\n", errors.Wrap(errFromCode(cErr), "failed to close"))
+		logger.Errorf("%v", errors.Wrap(errFromCode(cErr), "failed to close"))
 	}
 	C.fido_dev_free(&d.dev)
 	d.dev = nil
