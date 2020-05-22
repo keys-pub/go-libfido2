@@ -13,7 +13,6 @@ func ExampleDeviceLocations() {
 	if os.Getenv("FIDO2_EXAMPLES") == "" {
 		return
 	}
-	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
 
 	locs, err := libfido2.DeviceLocations()
 	if err != nil {
@@ -51,7 +50,6 @@ func ExampleDevice_MakeCredential() {
 	if os.Getenv("FIDO2_EXAMPLES") == "" {
 		return
 	}
-	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
 
 	locs, err := libfido2.DeviceLocations()
 	if err != nil {
@@ -183,7 +181,6 @@ func ExampleDevice_Credentials() {
 	if os.Getenv("FIDO2_EXAMPLES") == "" {
 		return
 	}
-	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
 
 	locs, err := libfido2.DeviceLocations()
 	if err != nil {
@@ -236,7 +233,6 @@ func ExampleDevice_Reset() {
 	if os.Getenv("FIDO2_EXAMPLES") == "" {
 		return
 	}
-	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
 
 	if os.Getenv("FIDO2_EXAMPLES_RESET") != "1" {
 		log.Println("only runs if FIDO2_EXAMPLES_RESET=1")
@@ -274,7 +270,6 @@ func ExampleDevice_SetPIN() {
 	if os.Getenv("FIDO2_EXAMPLES") == "" {
 		return
 	}
-	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
 
 	locs, err := libfido2.DeviceLocations()
 	if err != nil {
