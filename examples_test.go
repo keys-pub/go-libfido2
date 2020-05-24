@@ -10,7 +10,7 @@ import (
 )
 
 func ExampleDeviceLocations() {
-	if os.Getenv("FIDO2_EXAMPLES") == "" {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
 		return
 	}
 	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
@@ -48,7 +48,7 @@ func ExampleDeviceLocations() {
 }
 
 func ExampleDevice_MakeCredential() {
-	if os.Getenv("FIDO2_EXAMPLES") == "" {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
 		return
 	}
 	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
@@ -104,7 +104,7 @@ func ExampleDevice_MakeCredential() {
 }
 
 func ExampleDevice_Assertion() {
-	if os.Getenv("FIDO2_EXAMPLES") == "" {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
 		return
 	}
 	locs, err := libfido2.DeviceLocations()
@@ -180,7 +180,7 @@ func ExampleDevice_Assertion() {
 }
 
 func ExampleDevice_Credentials() {
-	if os.Getenv("FIDO2_EXAMPLES") == "" {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
 		return
 	}
 	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
@@ -233,7 +233,7 @@ func ExampleDevice_Credentials() {
 }
 
 func ExampleDevice_Reset() {
-	if os.Getenv("FIDO2_EXAMPLES") == "" {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
 		return
 	}
 	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
@@ -271,7 +271,7 @@ func ExampleDevice_Reset() {
 }
 
 func ExampleDevice_SetPIN() {
-	if os.Getenv("FIDO2_EXAMPLES") == "" {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
 		return
 	}
 	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
@@ -302,6 +302,9 @@ func ExampleDevice_SetPIN() {
 }
 
 func ExampleDevice_MakeCredential_hmacSecret() {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
+		return
+	}
 	locs, err := libfido2.DeviceLocations()
 	if err != nil {
 		log.Fatal(err)
@@ -355,6 +358,9 @@ type testVector struct {
 }
 
 func ExampleDevice_Assertion_hmacSecret() {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
+		return
+	}
 	locs, err := libfido2.DeviceLocations()
 	if err != nil {
 		log.Fatal(err)
