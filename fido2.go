@@ -868,6 +868,9 @@ var ErrUPRequired = errors.New("up required")
 // ErrRXInvalidCBOR if receiving invalid CBOR.
 var ErrRXInvalidCBOR = errors.New("rx invalid cbor")
 
+// ErrOperationDenied if operation denied.
+var ErrOperationDenied = errors.New("operation denied")
+
 func errFromCode(code C.int) error {
 	switch code {
 	case C.FIDO_ERR_TX: // -1
@@ -912,6 +915,8 @@ func errFromCode(code C.int) error {
 		return ErrUPRequired
 	case C.FIDO_ERR_RX_INVALID_CBOR:
 		return ErrRXInvalidCBOR
+	case C.FIDO_ERR_OPERATION_DENIED:
+		return ErrOperationDenied
 	default:
 		return ErrCode{code: int(code)}
 	}
