@@ -72,6 +72,7 @@ func ExampleDevice_MakeCredential() {
 
 	cdh := libfido2.RandBytes(32)
 	userID := libfido2.RandBytes(32)
+	pin := os.Getenv("FIDO2_PIN")
 
 	attest, err := device.MakeCredential(
 		cdh,
@@ -85,7 +86,7 @@ func ExampleDevice_MakeCredential() {
 			DisplayName: "Gabriel",
 		},
 		libfido2.ES256, // Algorithm
-		"12345",        // Pin
+		pin,
 		nil,
 	)
 	if err != nil {
@@ -127,6 +128,7 @@ func ExampleDevice_Assertion() {
 	cdh := libfido2.RandBytes(32)
 	userID := libfido2.RandBytes(32)
 	salt := libfido2.RandBytes(32)
+	pin := os.Getenv("FIDO2_PIN")
 
 	attest, err := device.MakeCredential(
 		cdh,
@@ -138,7 +140,7 @@ func ExampleDevice_Assertion() {
 			Name: "gabriel",
 		},
 		libfido2.ES256, // Algorithm
-		"12345",        // Pin
+		pin,
 		&libfido2.MakeCredentialOpts{
 			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
 			RK:         libfido2.True,
@@ -159,7 +161,7 @@ func ExampleDevice_Assertion() {
 		"keys.pub",
 		cdh,
 		attest.CredentialID,
-		"12345", // Pin
+		pin,
 		&libfido2.AssertionOpts{
 			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
 			UP:         libfido2.True,
@@ -202,7 +204,7 @@ func ExampleDevice_Credentials() {
 	}
 	defer device.Close()
 
-	pin := "12345"
+	pin := os.Getenv("FIDO2_PIN")
 
 	info, err := device.CredentialsInfo(pin)
 	if err != nil {
@@ -293,7 +295,9 @@ func ExampleDevice_SetPIN() {
 	}
 	defer device.Close()
 
-	if err := device.SetPIN("12345", ""); err != nil {
+	pin := os.Getenv("FIDO2_PIN")
+
+	if err := device.SetPIN(pin, ""); err != nil {
 		log.Fatal(err)
 	}
 
@@ -324,7 +328,7 @@ func ExampleDevice_MakeCredential_hmacSecret() {
 
 	cdh := bytes.Repeat([]byte{0x01}, 32)
 	rpID := "keys.pub"
-	pin := "12345"
+	pin := os.Getenv("FIDO2_PIN")
 
 	attest, err := device.MakeCredential(
 		cdh,
@@ -381,7 +385,7 @@ func ExampleDevice_Assertion_hmacSecret() {
 
 	cdh := bytes.Repeat([]byte{0x01}, 32)
 	rpID := "keys.pub"
-	pin := "12345"
+	pin := os.Getenv("FIDO2_PIN")
 
 	testVectors := map[string]testVector{
 		"SoloKey 4.0/SoloKeys": testVector{
