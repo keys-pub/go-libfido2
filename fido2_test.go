@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO: It's important tests are run serially (a device can't handle concurrent requests).
+
 func TestDeviceLocations(t *testing.T) {
 	locs, err := libfido2.DeviceLocations()
 	require.NoError(t, err)
