@@ -429,3 +429,53 @@ func ExampleDevice_Assertion_hmacSecret() {
 		log.Fatalf("Expected %s", testVector.Secret)
 	}
 }
+
+func ExampleDevice_DeleteCredential() {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
+		return
+	}
+	locs, err := libfido2.DeviceLocations()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(locs) == 0 {
+		log.Fatal("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", locs[0])
+	path := locs[0].Path
+	device, err := libfido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer device.Close()
+
+	pin := os.Getenv("FIDO2_PIN")
+
+	info, err := device.CredentialsInfo(pin)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Info: %+v\n", info)
+
+	rps, err := device.RelyingParties(pin)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, rp := range rps {
+		creds, err := device.Credentials(rp.ID, pin)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, cred := range creds {
+			log.Printf("Deleting: %s\n", hex.EncodeToString(cred.ID))
+			if err := device.DeleteCredential(cred.ID, pin); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+
+	// Output:
+	//
+}

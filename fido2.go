@@ -15,7 +15,6 @@ import (
 )
 
 // TODO: fido_assert_verify
-// TODO: fido_credman_del_dev_rk
 
 // Device ...
 type Device struct {
@@ -685,7 +684,7 @@ func (d *Device) CredentialsInfo(pin string) (*CredentialsInfo, error) {
 	}, nil
 }
 
-// Credentials ...
+// Credentials lists credentials (if credMgmt is supported).
 func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
 	if rpID == "" {
 		return nil, errors.Errorf("no rpID specified")
@@ -708,6 +707,14 @@ func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
 		credentials = append(credentials, cred)
 	}
 	return credentials, nil
+}
+
+// DeleteCredential deletes a resident credential (if credMgmt is supported).
+func (d *Device) DeleteCredential(credID []byte, pin string) error {
+	if cErr := C.fido_credman_del_dev_rk(d.dev, cBytes(credID), cLen(credID), cStringOrNil(pin)); cErr != C.FIDO_OK {
+		return errors.Wrap(errFromCode(cErr), "failed to delete key")
+	}
+	return nil
 }
 
 // RelyingParties ...
