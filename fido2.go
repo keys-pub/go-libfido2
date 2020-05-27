@@ -14,6 +14,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO: fido_assert_verify
+// TODO: fido_credman_del_dev_rk
+
 // Device ...
 type Device struct {
 	dev *C.fido_dev_t
@@ -658,11 +661,6 @@ func (d *Device) Assertion(
 	}
 
 	return assertion, nil
-}
-
-func verifyAssertion() error {
-	// fido_assert_verify
-	return nil
 }
 
 // CredentialsInfo ...
