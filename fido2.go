@@ -151,8 +151,8 @@ func extensionsInt(extensions []Extension) int {
 		switch extension {
 		case HMACSecretExtension:
 			exts |= int(C.FIDO_EXT_HMAC_SECRET)
-		case CredProtectExtension:
-			exts |= int(C.FIDO_EXT_CRED_PROTECT)
+			// case CredProtectExtension:
+			// 	exts |= int(C.FIDO_EXT_CRED_PROTECT)
 		}
 	}
 	return exts
