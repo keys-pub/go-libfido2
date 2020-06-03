@@ -431,13 +431,14 @@ func (d *Device) MakeCredential(
 	}
 
 	if opts.CredProtect != CredProtectNone {
-		cProt, err := cCredProtect(opts.CredProtect)
-		if err != nil {
-			return nil, err
-		}
-		if cErr := C.fido_cred_set_prot(cCred, cProt); cErr != C.FIDO_OK {
-			return nil, errors.Wrap(errFromCode(cErr), "failed to set prot")
-		}
+		// cProt, err := cCredProtect(opts.CredProtect)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// if cErr := C.fido_cred_set_prot(cCred, cProt); cErr != C.FIDO_OK {
+		// 	return nil, errors.Wrap(errFromCode(cErr), "failed to set prot")
+		// }
+		return nil, errors.Errorf("fido_cred_set_prot not supported yet")
 	}
 
 	if exts := extensionsInt(opts.Extensions); exts > 0 {
@@ -788,18 +789,18 @@ func cOpt(o OptionValue) (C.fido_opt_t, error) {
 	}
 }
 
-func cCredProtect(c CredProtect) (C.int, error) {
-	switch c {
-	case CredProtectUVOptional:
-		return C.FIDO_CRED_PROT_UV_OPTIONAL, nil
-	case CredProtectUVOptionalWithID:
-		return C.FIDO_CRED_PROT_UV_OPTIONAL_WITH_ID, nil
-	case CredProtectUVRequired:
-		return C.FIDO_CRED_PROT_UV_REQUIRED, nil
-	default:
-		return C.FIDO_CRED_PROT_UV_OPTIONAL, errors.Errorf("invalid cred protect")
-	}
-}
+// func cCredProtect(c CredProtect) (C.int, error) {
+// 	switch c {
+// 	case CredProtectUVOptional:
+// 		return C.FIDO_CRED_PROT_UV_OPTIONAL, nil
+// 	case CredProtectUVOptionalWithID:
+// 		return C.FIDO_CRED_PROT_UV_OPTIONAL_WITH_ID, nil
+// 	case CredProtectUVRequired:
+// 		return C.FIDO_CRED_PROT_UV_REQUIRED, nil
+// 	default:
+// 		return C.FIDO_CRED_PROT_UV_OPTIONAL, errors.Errorf("invalid cred protect")
+// 	}
+// }
 
 // ErrCode is a generic error with code.
 type ErrCode struct {
