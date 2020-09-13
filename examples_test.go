@@ -26,9 +26,6 @@ func ExampleDeviceLocations() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer device.Close()
-
-		log.Printf("FIDO2? %t\n", device.IsFIDO2())
 
 		hidInfo, err := device.CTAPHIDInfo()
 		if err != nil {
@@ -68,11 +65,10 @@ func ExampleDevice_MakeCredential() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer device.Close()
 
 	cdh := libfido2.RandBytes(32)
 	userID := libfido2.RandBytes(32)
-	pin := os.Getenv("FIDO2_PIN")
+	pin := "12345"
 
 	attest, err := device.MakeCredential(
 		cdh,
@@ -123,12 +119,11 @@ func ExampleDevice_Assertion() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer device.Close()
 
 	cdh := libfido2.RandBytes(32)
 	userID := libfido2.RandBytes(32)
 	salt := libfido2.RandBytes(32)
-	pin := os.Getenv("FIDO2_PIN")
+	pin := "12345"
 
 	attest, err := device.MakeCredential(
 		cdh,
@@ -202,9 +197,8 @@ func ExampleDevice_Credentials() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer device.Close()
 
-	pin := os.Getenv("FIDO2_PIN")
+	pin := "12345"
 
 	info, err := device.CredentialsInfo(pin)
 	if err != nil {
@@ -260,7 +254,6 @@ func ExampleDevice_Reset() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer device.Close()
 
 	log.Printf("Resetting: %+v\n", locs[0])
 	if err := device.Reset(); err != nil {
@@ -273,7 +266,7 @@ func ExampleDevice_Reset() {
 }
 
 func ExampleDevice_SetPIN() {
-	if os.Getenv("FIDO2_EXAMPLES") != "1" {
+	if os.Getenv("FIDO2_EXAMPLES_SET_PIN") != "1" {
 		return
 	}
 	libfido2.SetLogger(libfido2.NewLogger(libfido2.DebugLevel))
@@ -293,10 +286,8 @@ func ExampleDevice_SetPIN() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer device.Close()
 
-	pin := os.Getenv("FIDO2_PIN")
-
+	pin := "12345"
 	if err := device.SetPIN(pin, ""); err != nil {
 		log.Fatal(err)
 	}
@@ -324,11 +315,10 @@ func ExampleDevice_MakeCredential_hmacSecret() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer device.Close()
 
 	cdh := bytes.Repeat([]byte{0x01}, 32)
 	rpID := "keys.pub"
-	pin := os.Getenv("FIDO2_PIN")
+	pin := "12345"
 
 	attest, err := device.MakeCredential(
 		cdh,
@@ -379,13 +369,12 @@ func ExampleDevice_Assertion_hmacSecret() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer device.Close()
 
 	name := locs[0].Product + "/" + locs[0].Manufacturer
 
 	cdh := bytes.Repeat([]byte{0x01}, 32)
 	rpID := "keys.pub"
-	pin := os.Getenv("FIDO2_PIN")
+	pin := "12345"
 
 	testVectors := map[string]testVector{
 		"SoloKey 4.0/SoloKeys": testVector{
@@ -449,9 +438,8 @@ func ExampleDevice_DeleteCredential() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer device.Close()
 
-	pin := os.Getenv("FIDO2_PIN")
+	pin := "12345"
 
 	info, err := device.CredentialsInfo(pin)
 	if err != nil {

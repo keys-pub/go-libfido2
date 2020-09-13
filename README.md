@@ -23,25 +23,25 @@ func ExampleDevice_Assertion() {
     if err != nil {
         log.Fatal(err)
     }
-    defer device.Close()
 
     cdh := libfido2.RandBytes(32)
     userID := libfido2.RandBytes(32)
+    salt := libfido2.RandBytes(32)
+    pin := "12345"
 
     attest, err := device.MakeCredential(
         cdh,
         libfido2.RelyingParty{
             ID: "keys.pub",
-            Name: "keys.pub",
         },
         libfido2.User{
             ID:   userID,
             Name: "gabriel",
         },
         libfido2.ES256, // Algorithm
-        "12345",        // Pin
+        pin,
         &libfido2.MakeCredentialOpts{
-            Extensions: []libfido2.Extension{libfido2.HMACSecret},
+            Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
             RK:         libfido2.True,
         },
     )
@@ -56,16 +56,15 @@ func ExampleDevice_Assertion() {
     log.Printf("Type: %s\n", attest.CredentialType)
     log.Printf("Sig: %s\n", hex.EncodeToString(attest.Sig))
 
-    hmacSalt := libfido2.RandBytes(32)
     assertion, err := device.Assertion(
         "keys.pub",
         cdh,
         attest.CredentialID,
-        "12345", // Pin
+        pin,
         &libfido2.AssertionOpts{
-            Extensions: []libfido2.Extension{libfido2.HMACSecret},
+            Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
             UP:         libfido2.True,
-            HMACSalt:   hmacSalt,
+            HMACSalt:   salt,
         },
     )
     if err != nil {
@@ -108,7 +107,7 @@ sudo apt install libfido2-dev
 ### macOS
 
 ```shell
-brew install libfido2
+brew install keys-pub/tap/libfido2
 ```
 
 ### Windows
