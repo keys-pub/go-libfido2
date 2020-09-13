@@ -25,10 +25,9 @@ func TestDevices(t *testing.T) {
 			continue
 		}
 
+		// Testing info twice (hid_osx issues in the past caused a delayed 2nd request to fail).
 		info, err := device.Info()
 		require.NoError(t, err)
-		t.Logf("Info: %+v", info)
-
 		time.Sleep(time.Millisecond * 100)
 
 		info, err = device.Info()
