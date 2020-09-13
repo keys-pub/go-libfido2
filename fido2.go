@@ -16,9 +16,13 @@ import (
 
 // TODO: fido_assert_verify
 
+func init() {
+	C.fido_init(0) // C.FIDO_DEBUG)
+}
+
 // Device ...
 type Device struct {
-	dev *C.fido_dev_t
+	path string
 }
 
 // DeviceLocation ...
@@ -53,18 +57,6 @@ type DeviceInfo struct {
 	Options    []Option
 	Protocols  []byte
 }
-
-// DeviceType is latest type the device supports.
-type DeviceType string
-
-const (
-	// UnknownDevice ...
-	UnknownDevice DeviceType = ""
-	// FIDO2 ...
-	FIDO2 DeviceType = "fido2"
-	// U2F ...
-	U2F DeviceType = "u2f"
-)
 
 // RelyingParty ...
 type RelyingParty struct {
@@ -176,34 +168,28 @@ type CredentialsInfo struct {
 	RKRemaining int64
 }
 
+const maxDevices = 64
+
 // DeviceLocations lists found devices.
 func DeviceLocations() ([]*DeviceLocation, error) {
 	logger.Debugf("Finding devices...")
-	cMax := C.size_t(1000)
-	devList := C.fido_dev_info_new(cMax)
-	defer C.fido_dev_info_free(&devList, cMax)
-
-	// Get number of devices found
+	cMax := C.size_t(maxDevices)
+	info := C.fido_dev_info_new(cMax)
 	var cFound C.size_t = 0
-	cErr := C.fido_dev_info_manifest(
-		devList,
-		cMax,
-		&cFound,
-	)
+	cErr := C.fido_dev_info_manifest(info, cMax, &cFound)
 	if cErr != C.FIDO_OK {
 		return nil, errors.Errorf("fido_dev_info_manifest error %d", cErr)
 	}
+	defer C.fido_dev_info_free(&info, C.size_t(maxDevices))
+	found := int(cFound)
 
-	logger.Debugf("Found %d devices\n", cFound)
-
-	locs := make([]*DeviceLocation, 0, int(cFound))
-	for i := 0; i < int(cFound); i++ {
+	locs := make([]*DeviceLocation, 0, found)
+	for i := 0; i < found; i++ {
 		cIdx := C.size_t(i)
-		devInfo := C.fido_dev_info_ptr(devList, cIdx)
+		devInfo := C.fido_dev_info_ptr(info, cIdx)
 		if devInfo == nil {
 			return nil, errors.Errorf("device info is empty")
 		}
-
 		cPath := C.fido_dev_info_path(devInfo)
 		cProductID := C.fido_dev_info_product(devInfo)
 		cVendorID := C.fido_dev_info_vendor(devInfo)
@@ -226,54 +212,39 @@ func NewDevice(path string) (*Device, error) {
 	if path == "" {
 		return nil, errors.Errorf("empty device path")
 	}
-	dev := C.fido_dev_new()
-	cErr := C.fido_dev_open(dev, C.CString(path))
-	if cErr != C.FIDO_OK {
-		return nil, errors.Wrap(errFromCode(cErr), "failed to open")
-	}
 	return &Device{
-		dev: dev,
+		path: fmt.Sprintf("%s", path),
 	}, nil
 }
 
-// Close device.
-func (d *Device) Close() {
-	if d.dev == nil {
-		return
+func open(path string) (*C.fido_dev_t, error) {
+	dev := C.fido_dev_new()
+	if cErr := C.fido_dev_open(dev, C.CString(path)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to open")
 	}
-	if cErr := C.fido_dev_close(d.dev); cErr != C.FIDO_OK {
+	return dev, nil
+}
+
+func close(dev *C.fido_dev_t) {
+	if cErr := C.fido_dev_close(dev); cErr != C.FIDO_OK {
 		logger.Errorf("%v", errors.Wrap(errFromCode(cErr), "failed to close"))
 	}
-	C.fido_dev_free(&d.dev)
-	d.dev = nil
-}
-
-// IsFIDO2 ...
-func (d *Device) IsFIDO2() bool {
-	return bool(C.fido_dev_is_fido2(d.dev))
-}
-
-// ForceType ...
-func (d *Device) ForceType(typ DeviceType) error {
-	switch typ {
-	case FIDO2:
-		C.fido_dev_force_fido2(d.dev)
-		return nil
-	case U2F:
-		C.fido_dev_force_u2f(d.dev)
-		return nil
-	default:
-		return errors.Errorf("unknown type")
-	}
+	C.fido_dev_free(&dev)
 }
 
 // CTAPHIDInfo ...
 func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
-	protocol := C.fido_dev_protocol(d.dev)
-	major := C.fido_dev_major(d.dev)
-	minor := C.fido_dev_minor(d.dev)
-	build := C.fido_dev_build(d.dev)
-	flags := C.fido_dev_flags(d.dev)
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, err
+	}
+	defer close(dev)
+
+	protocol := C.fido_dev_protocol(dev)
+	major := C.fido_dev_major(dev)
+	minor := C.fido_dev_minor(dev)
+	build := C.fido_dev_build(dev)
+	flags := C.fido_dev_flags(dev)
 
 	return &HIDInfo{
 		Protocol: uint8(protocol),
@@ -287,10 +258,21 @@ func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
 // Info represents authenticatorGetInfo (0x04).
 // https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorGetInfo
 func (d *Device) Info() (*DeviceInfo, error) {
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, err
+	}
+	defer close(dev)
+
+	isFIDO2 := bool(C.fido_dev_is_fido2(dev))
+	if !isFIDO2 {
+		return nil, ErrNotFIDO2
+	}
+
 	info := C.fido_cbor_info_new()
 	defer C.fido_cbor_info_free(&info)
 
-	if cErr := C.fido_dev_get_cbor_info(d.dev, info); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_get_cbor_info(dev, info); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to get info")
 	}
 
@@ -391,15 +373,21 @@ func (d *Device) MakeCredential(
 	if rp.ID == "" {
 		return nil, errors.Errorf("no rp id specified")
 	}
-	if rp.Name == "" {
-		return nil, errors.Errorf("no rp name specified")
-	}
+	// if rp.Name == "" {
+	// 	return nil, errors.Errorf("no rp name specified")
+	// }
 	if len(user.ID) == 0 {
 		return nil, errors.Errorf("no user id specified")
 	}
 	if user.Name == "" {
 		return nil, errors.Errorf("no user name specified")
 	}
+
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, err
+	}
+	defer close(dev)
 
 	cCred := C.fido_cred_new()
 	defer C.fido_cred_free(&cCred)
@@ -446,7 +434,7 @@ func (d *Device) MakeCredential(
 		}
 	}
 
-	if cErr := C.fido_dev_make_cred(d.dev, cCred, cStringOrNil(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_make_cred(dev, cCred, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to make credential")
 	}
 
@@ -530,7 +518,13 @@ func credential(cCred *C.fido_cred_t) (*Credential, error) {
 
 // SetPIN ...
 func (d *Device) SetPIN(pin string, old string) error {
-	if cErr := C.fido_dev_set_pin(d.dev, C.CString(pin), cStringOrNil(old)); cErr != C.FIDO_OK {
+	dev, err := open(d.path)
+	if err != nil {
+		return err
+	}
+	defer close(dev)
+
+	if cErr := C.fido_dev_set_pin(dev, C.CString(pin), cStringOrNil(old)); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to set pin")
 	}
 	return nil
@@ -543,7 +537,13 @@ func (d *Device) SetPIN(pin string, old string) error {
 // seconds after power-up, and ErrActionTimeout if the user fails to confirm the reset by touching the key within 30
 // seconds.
 func (d *Device) Reset() error {
-	if cErr := C.fido_dev_reset(d.dev); cErr != C.FIDO_OK {
+	dev, err := open(d.path)
+	if err != nil {
+		return err
+	}
+	defer close(dev)
+
+	if cErr := C.fido_dev_reset(dev); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to reset")
 	}
 	return nil
@@ -551,8 +551,14 @@ func (d *Device) Reset() error {
 
 // RetryCount ...
 func (d *Device) RetryCount() (int, error) {
+	dev, err := open(d.path)
+	if err != nil {
+		return 0, err
+	}
+	defer close(dev)
+
 	var retryCount C.int
-	if cErr := C.fido_dev_get_retry_count(d.dev, &retryCount); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_get_retry_count(dev, &retryCount); cErr != C.FIDO_OK {
 		return 0, errors.Wrap(errFromCode(cErr), "failed to get retry count")
 	}
 	return int(retryCount), nil
@@ -580,6 +586,12 @@ func (d *Device) Assertion(
 	if rpID == "" {
 		return nil, errors.Errorf("no rpID specified")
 	}
+
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, err
+	}
+	defer close(dev)
 
 	cAssert := C.fido_assert_new()
 	defer C.fido_assert_free(&cAssert)
@@ -621,7 +633,7 @@ func (d *Device) Assertion(
 	}
 
 	// Get assertion
-	if cErr := C.fido_dev_get_assert(d.dev, cAssert, cStringOrNil(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_get_assert(dev, cAssert, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrapf(errFromCode(cErr), "failed to get assertion")
 	}
 
@@ -667,11 +679,16 @@ func (d *Device) CredentialsInfo(pin string) (*CredentialsInfo, error) {
 	if pin == "" {
 		return nil, errors.Errorf("pin is required")
 	}
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, err
+	}
+	defer close(dev)
 
 	cCredMeta := C.fido_credman_metadata_new()
 	defer C.fido_credman_metadata_free(&cCredMeta)
 
-	if cErr := C.fido_credman_get_dev_metadata(d.dev, cCredMeta, cStringOrNil(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_credman_get_dev_metadata(dev, cCredMeta, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to get credentials info")
 	}
 
@@ -689,10 +706,16 @@ func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
 	if rpID == "" {
 		return nil, errors.Errorf("no rpID specified")
 	}
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, err
+	}
+	defer close(dev)
+
 	cRK := C.fido_credman_rk_new()
 	defer C.fido_credman_rk_free(&cRK)
 
-	if cErr := C.fido_credman_get_dev_rk(d.dev, C.CString(rpID), cRK, cStringOrNil(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_credman_get_dev_rk(dev, C.CString(rpID), cRK, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to get resident key info")
 	}
 
@@ -711,7 +734,13 @@ func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
 
 // DeleteCredential deletes a resident credential (if credMgmt is supported).
 func (d *Device) DeleteCredential(credID []byte, pin string) error {
-	if cErr := C.fido_credman_del_dev_rk(d.dev, cBytes(credID), cLen(credID), cStringOrNil(pin)); cErr != C.FIDO_OK {
+	dev, err := open(d.path)
+	if err != nil {
+		return err
+	}
+	defer close(dev)
+
+	if cErr := C.fido_credman_del_dev_rk(dev, cBytes(credID), cLen(credID), cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to delete key")
 	}
 	return nil
@@ -719,10 +748,16 @@ func (d *Device) DeleteCredential(credID []byte, pin string) error {
 
 // RelyingParties ...
 func (d *Device) RelyingParties(pin string) ([]*RelyingParty, error) {
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, err
+	}
+	defer close(dev)
+
 	cRP := C.fido_credman_rp_new()
 	defer C.fido_credman_rp_free(&cRP)
 
-	if cErr := C.fido_credman_get_dev_rp(d.dev, cRP, cStringOrNil(pin)); cErr != C.FIDO_OK {
+	if cErr := C.fido_credman_get_dev_rp(dev, cRP, cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to get relying party info")
 	}
 
@@ -875,6 +910,9 @@ var ErrRXInvalidCBOR = errors.New("rx invalid cbor")
 
 // ErrOperationDenied if operation denied.
 var ErrOperationDenied = errors.New("operation denied")
+
+// ErrNotFIDO2 if device is not a FIDO2 device.
+var ErrNotFIDO2 = errors.Errorf("not a FIDO2 device")
 
 func errFromCode(code C.int) error {
 	switch code {
