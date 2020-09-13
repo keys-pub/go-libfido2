@@ -25,6 +25,10 @@ func TestDevices(t *testing.T) {
 			continue
 		}
 
+		typ, err := device.Type()
+		require.NoError(t, err)
+		require.Equal(t, libfido2.FIDO2, typ)
+
 		// Testing info twice (hid_osx issues in the past caused a delayed 2nd request to fail).
 		info, err := device.Info()
 		require.NoError(t, err)
