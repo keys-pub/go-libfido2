@@ -58,6 +58,18 @@ type DeviceInfo struct {
 	Protocols  []byte
 }
 
+// DeviceType is latest type the device supports.
+type DeviceType string
+
+const (
+	// UnknownDevice ...
+	UnknownDevice DeviceType = ""
+	// FIDO2 ...
+	FIDO2 DeviceType = "fido2"
+	// U2F ...
+	U2F DeviceType = "u2f"
+)
+
 // RelyingParty ...
 type RelyingParty struct {
 	ID   string
@@ -265,6 +277,21 @@ func (d *Device) IsFIDO2() (bool, error) {
 
 	isFIDO2 := bool(C.fido_dev_is_fido2(dev))
 	return isFIDO2, nil
+}
+
+// Type returns device type.
+func (d *Device) Type() (DeviceType, error) {
+	dev, err := open(d.path)
+	if err != nil {
+		return UnknownDevice, err
+	}
+	defer close(dev)
+
+	isFIDO2 := bool(C.fido_dev_is_fido2(dev))
+	if isFIDO2 {
+		return FIDO2, nil
+	}
+	return U2F, nil
 }
 
 // Info represents authenticatorGetInfo (0x04).
