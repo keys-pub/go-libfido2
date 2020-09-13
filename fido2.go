@@ -255,6 +255,18 @@ func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
 	}, nil
 }
 
+// IsFIDO2 returns true if device supports FIDO2.
+func (d *Device) IsFIDO2() (bool, error) {
+	dev, err := open(d.path)
+	if err != nil {
+		return false, err
+	}
+	defer close(dev)
+
+	isFIDO2 := bool(C.fido_dev_is_fido2(dev))
+	return isFIDO2, nil
+}
+
 // Info represents authenticatorGetInfo (0x04).
 // https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorGetInfo
 func (d *Device) Info() (*DeviceInfo, error) {

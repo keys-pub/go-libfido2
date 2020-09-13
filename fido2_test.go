@@ -19,6 +19,12 @@ func TestDevices(t *testing.T) {
 		device, err := libfido2.NewDevice(loc.Path)
 		require.NoError(t, err)
 
+		isFIDO2, err := device.IsFIDO2()
+		require.NoError(t, err)
+		if !isFIDO2 {
+			continue
+		}
+
 		info, err := device.Info()
 		require.NoError(t, err)
 		t.Logf("Info: %+v", info)
