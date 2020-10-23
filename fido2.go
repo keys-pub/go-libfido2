@@ -875,13 +875,13 @@ func cCredProtect(c CredProtect) (C.int, error) {
 	}
 }
 
-// ErrCode is a generic error with code.
-type ErrCode struct {
-	code int
+// Error is a generic error with code.
+type Error struct {
+	Code int
 }
 
-func (e ErrCode) Error() string {
-	return fmt.Sprintf("error %d", e.code)
+func (e Error) Error() string {
+	return fmt.Sprintf("error %d", e.Code)
 }
 
 // ErrInvalidArgument if arguments are invalid.
@@ -902,8 +902,8 @@ var ErrNotAllowed = errors.New("not allowed")
 // ErrActionTimeout if action timed out.
 var ErrActionTimeout = errors.New("action timed out")
 
-// ErrPINNotSet if PIN is not set and is required for command.
-var ErrPINNotSet = errors.New("pin not set")
+// ErrPinNotSet if PIN is not set and is required for command.
+var ErrPinNotSet = errors.New("pin not set")
 
 // ErrInvalidCommand if command is not supported.
 var ErrInvalidCommand = errors.New("invalid command")
@@ -953,6 +953,9 @@ var ErrOperationDenied = errors.New("operation denied")
 // ErrNotFIDO2 if device is not a FIDO2 device.
 var ErrNotFIDO2 = errors.Errorf("not a FIDO2 device")
 
+// ErrOther if other error?
+var ErrOther = errors.Errorf("other error")
+
 func errFromCode(code C.int) error {
 	switch code {
 	case C.FIDO_ERR_TX: // -1
@@ -974,7 +977,7 @@ func errFromCode(code C.int) error {
 	case C.FIDO_ERR_ACTION_TIMEOUT:
 		return ErrActionTimeout
 	case C.FIDO_ERR_PIN_NOT_SET:
-		return ErrPINNotSet
+		return ErrPinNotSet
 	case C.FIDO_ERR_INVALID_CREDENTIAL:
 		return ErrInvalidCredential
 	case C.FIDO_ERR_UNSUPPORTED_OPTION:
@@ -999,8 +1002,10 @@ func errFromCode(code C.int) error {
 		return ErrRXInvalidCBOR
 	case C.FIDO_ERR_OPERATION_DENIED:
 		return ErrOperationDenied
+	case C.FIDO_ERR_ERR_OTHER:
+		return ErrOther
 	default:
-		return ErrCode{code: int(code)}
+		return Error{Code: int(code)}
 	}
 }
 
