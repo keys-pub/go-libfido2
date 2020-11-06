@@ -11,13 +11,14 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 )
 
 // TODO: fido_assert_verify
 
 func init() {
-	C.fido_init(0) // C.FIDO_DEBUG)
+	C.fido_init(C.FIDO_DEBUG)
 }
 
 // Device ...
@@ -489,6 +490,8 @@ func attestation(cCred *C.fido_cred_t) (*Attestation, error) {
 	cAuthDataLen := C.fido_cred_authdata_len(cCred)
 	cAuthDataPtr := C.fido_cred_authdata_ptr(cCred)
 	authData := C.GoBytes(unsafe.Pointer(cAuthDataPtr), C.int(cAuthDataLen))
+	fmt.Printf("cAuthDataLen: %d\n", cAuthDataLen)
+	spew.Dump(authData)
 
 	cClientDataHashLen := C.fido_cred_clientdata_hash_len(cCred)
 	cClientDataHashPtr := C.fido_cred_clientdata_hash_ptr(cCred)
@@ -676,10 +679,12 @@ func (d *Device) Assertion(
 		return nil, errors.Wrapf(errFromCode(cErr), "failed to get assertion")
 	}
 
-	// count := int(C.fido_assert_count(cAssert))
+	count := int(C.fido_assert_count(cAssert))
+	fmt.Printf("count: %d\n", count)
 	cIdx := C.size_t(0)
 	cAuthDataLen := C.fido_assert_authdata_len(cAssert, cIdx)
 	cAuthDataPtr := C.fido_assert_authdata_ptr(cAssert, cIdx)
+	fmt.Printf("cAuthDataLen: %d\n", cAuthDataLen)
 	authData := C.GoBytes(unsafe.Pointer(cAuthDataPtr), C.int(cAuthDataLen))
 
 	cHMACLen := C.fido_assert_hmac_secret_len(cAssert, cIdx)
