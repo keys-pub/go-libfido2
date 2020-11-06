@@ -651,7 +651,7 @@ func (d *Device) Assertion(
 			return nil, errors.Wrap(errFromCode(cErr), "failed to set extensions")
 		}
 	}
-	cUV, err := cOpt(opts.UP)
+	cUV, err := cOpt(opts.UV)
 	if err != nil {
 		return nil, err
 	}
