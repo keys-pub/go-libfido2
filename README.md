@@ -116,3 +116,14 @@ brew install keys-pub/tap/libfido2
 scoop bucket add keys.pub https://github.com/keys-pub/scoop-bucket
 scoop install libfido2
 ```
+
+
+### Building libfido2
+
+#### macOS
+
+```
+export CFLAGS="-I/usr/local/include -I/usr/local/opt/openssl/include"
+export LDFLAGS="-L/usr/local/lib -L/usr/local/Cellar/openssl@1.1/1.1.1h/lib/"
+(rm -rf build && mkdir build && cd build && cmake ..) && make -C build
+```
