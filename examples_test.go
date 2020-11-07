@@ -168,9 +168,9 @@ func ExampleDevice_Assertion() {
 	}
 
 	log.Printf("Assertion:\n")
-	log.Printf("%s\n", hex.EncodeToString(assertion.AuthData))
-	log.Printf("%s\n", hex.EncodeToString(assertion.HMACSecret))
-	log.Printf("%s\n", hex.EncodeToString(assertion.Sig))
+	log.Printf("AuthDataCBOR: %s\n", hex.EncodeToString(assertion.AuthDataCBOR))
+	log.Printf("HMACSecret: %s\n", hex.EncodeToString(assertion.HMACSecret))
+	log.Printf("Sig: %s\n", hex.EncodeToString(assertion.Sig))
 
 	// Output:
 	//

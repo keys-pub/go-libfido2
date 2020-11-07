@@ -144,9 +144,11 @@ const (
 
 // Assertion ...
 type Assertion struct {
-	AuthData   []byte
-	Sig        []byte
-	HMACSecret []byte
+	// AuthDataCBOR is CBOR encoded authdata.
+	// TODO: Include "raw" authdata if that is added to libfido2.
+	AuthDataCBOR []byte
+	Sig          []byte
+	HMACSecret   []byte
 }
 
 func extensionsInt(extensions []Extension) int {
@@ -678,9 +680,11 @@ func (d *Device) Assertion(
 
 	// count := int(C.fido_assert_count(cAssert))
 	cIdx := C.size_t(0)
+
+	// Authdata here is CBOR encoded
 	cAuthDataLen := C.fido_assert_authdata_len(cAssert, cIdx)
 	cAuthDataPtr := C.fido_assert_authdata_ptr(cAssert, cIdx)
-	authData := C.GoBytes(unsafe.Pointer(cAuthDataPtr), C.int(cAuthDataLen))
+	authDataCBOR := C.GoBytes(unsafe.Pointer(cAuthDataPtr), C.int(cAuthDataLen))
 
 	cHMACLen := C.fido_assert_hmac_secret_len(cAssert, cIdx)
 	cHMACPtr := C.fido_assert_hmac_secret_ptr(cAssert, cIdx)
@@ -699,9 +703,9 @@ func (d *Device) Assertion(
 	// cUserIcon := C.fido_assert_user_icon(cAssert, cIdx)
 
 	assertion := &Assertion{
-		AuthData:   authData,
-		HMACSecret: hmacSecret,
-		Sig:        sig,
+		AuthDataCBOR: authDataCBOR,
+		HMACSecret:   hmacSecret,
+		Sig:          sig,
 		// User: User{
 		// 	ID:          userID,
 		// 	Name:        C.GoString(cUserName),
