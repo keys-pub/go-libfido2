@@ -25,7 +25,7 @@ jobs:
           Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')
           scoop bucket add keys.pub https://github.com/keys-pub/scoop-bucket
           scoop install libfido2
-          echo "::add-path::$HOME/scoop/apps/libfido2/current"
+          echo "$HOME/scoop/apps/libfido2/current" >> $GITHUB_PATH
       - name: Install Go
         uses: actions/setup-go@v1
         with:
