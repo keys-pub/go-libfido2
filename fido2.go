@@ -885,7 +885,7 @@ type Error struct {
 }
 
 func (e Error) Error() string {
-	return fmt.Sprintf("error %d", e.Code)
+	return fmt.Sprintf("libfido2 error %d", e.Code)
 }
 
 // ErrInvalidArgument if arguments are invalid.
