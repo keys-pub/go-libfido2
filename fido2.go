@@ -621,18 +621,30 @@ func (d *Device) Assertion(
 	pin string,
 	opts *AssertionOpts) (*Assertion, error) {
 
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, err
+	}
+	defer close(dev)
+
+	return d.assertionInternal(dev, rpID, clientDataHash, credentialID, pin, opts, err)
+}
+
+func (d *Device) assertionInternal(
+	dev *C.fido_dev_t,
+	rpID string,
+	clientDataHash []byte,
+	credentialID []byte,
+	pin string,
+	opts *AssertionOpts,
+	err error) (*Assertion, error) {
+
 	if opts == nil {
 		opts = &AssertionOpts{}
 	}
 	if rpID == "" {
 		return nil, errors.Errorf("no rpID specified")
 	}
-
-	dev, err := open(d.path)
-	if err != nil {
-		return nil, err
-	}
-	defer close(dev)
 
 	cAssert := C.fido_assert_new()
 	defer C.fido_assert_free(&cAssert)
@@ -675,6 +687,9 @@ func (d *Device) Assertion(
 
 	// Get assertion
 	if cErr := C.fido_dev_get_assert(dev, cAssert, cStringOrNil(pin)); cErr != C.FIDO_OK {
+		if cErr == C.FIDO_ERR_KEEPALIVE_CANCEL {
+			return nil, ErrInterrupted
+		}
 		return nil, errors.Wrapf(errFromCode(cErr), "failed to get assertion")
 	}
 
@@ -715,6 +730,28 @@ func (d *Device) Assertion(
 	}
 
 	return assertion, nil
+}
+
+func (d *Device) CancellableAssertion(
+	rpID string,
+	clientDataHash []byte,
+	credentialID []byte,
+	pin string,
+	opts *AssertionOpts) (assertFunc func() (*Assertion, error), cancelFunc func(), err error) {
+
+	dev, err := open(d.path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	assert := func() (*Assertion, error) {
+		defer close(dev)
+		return d.assertionInternal(dev, rpID, clientDataHash, credentialID, pin, opts, err)
+	}
+	cancel := func() {
+		C.fido_dev_cancel(dev)
+	}
+	return assert, cancel, nil
 }
 
 // CredentialsInfo ...
@@ -958,6 +995,9 @@ var ErrOperationDenied = errors.New("operation denied")
 var ErrNotFIDO2 = errors.Errorf("not a FIDO2 device")
 
 // ErrOther if other error?
+var ErrInterrupted = errors.Errorf("keep alive cancelled")
+
+// ErrOther if other error?
 var ErrOther = errors.Errorf("other error")
 
 func errFromCode(code C.int) error {
@@ -1006,6 +1046,8 @@ func errFromCode(code C.int) error {
 		return ErrRXInvalidCBOR
 	case C.FIDO_ERR_OPERATION_DENIED:
 		return ErrOperationDenied
+	case C.FIDO_ERR_KEEPALIVE_CANCEL:
+		return ErrInterrupted
 	case C.FIDO_ERR_ERR_OTHER:
 		return ErrOther
 	default:
