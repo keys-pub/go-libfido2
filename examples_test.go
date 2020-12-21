@@ -155,7 +155,7 @@ func ExampleDevice_Assertion() {
 	assertion, err := device.Assertion(
 		"keys.pub",
 		cdh,
-		attest.CredentialID,
+		[][]byte{attest.CredentialID},
 		pin,
 		&libfido2.AssertionOpts{
 			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
@@ -401,7 +401,7 @@ func ExampleDevice_Assertion_hmacSecret() {
 	assertion, err := device.Assertion(
 		rpID,
 		cdh,
-		credentialID,
+		[][]byte{credentialID},
 		pin,
 		&libfido2.AssertionOpts{
 			Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
