@@ -9,6 +9,7 @@ import "C"
 import (
 	"crypto/rand"
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -23,6 +24,10 @@ func init() {
 // Device ...
 type Device struct {
 	path string
+
+	// Device instance if open.
+	dev *C.fido_dev_t
+	sync.Mutex
 }
 
 // DeviceLocation ...
@@ -231,28 +236,45 @@ func NewDevice(path string) (*Device, error) {
 	}, nil
 }
 
-func open(path string) (*C.fido_dev_t, error) {
+func (d *Device) open() (*C.fido_dev_t, error) {
 	dev := C.fido_dev_new()
-	if cErr := C.fido_dev_open(dev, C.CString(path)); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_open(dev, C.CString(d.path)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to open")
 	}
+	d.dev = dev
 	return dev, nil
 }
 
-func close(dev *C.fido_dev_t) {
+func (d *Device) close(dev *C.fido_dev_t) {
+	d.Lock()
+	d.dev = nil
+	d.Unlock()
+
 	if cErr := C.fido_dev_close(dev); cErr != C.FIDO_OK {
 		logger.Errorf("%v", errors.Wrap(errFromCode(cErr), "failed to close"))
 	}
 	C.fido_dev_free(&dev)
 }
 
+// Cancel an action.
+func (d *Device) Cancel() error {
+	d.Lock()
+	defer d.Unlock()
+	if d.dev != nil {
+		if cErr := C.fido_dev_cancel(d.dev); cErr != C.FIDO_OK {
+			return errors.Wrap(errFromCode(cErr), "failed to cancel")
+		}
+	}
+	return nil
+}
+
 // CTAPHIDInfo ...
 func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	protocol := C.fido_dev_protocol(dev)
 	major := C.fido_dev_major(dev)
@@ -271,11 +293,11 @@ func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
 
 // IsFIDO2 returns true if device supports FIDO2.
 func (d *Device) IsFIDO2() (bool, error) {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return false, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	isFIDO2 := bool(C.fido_dev_is_fido2(dev))
 	return isFIDO2, nil
@@ -283,11 +305,11 @@ func (d *Device) IsFIDO2() (bool, error) {
 
 // Type returns device type.
 func (d *Device) Type() (DeviceType, error) {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return UnknownDevice, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	isFIDO2 := bool(C.fido_dev_is_fido2(dev))
 	if isFIDO2 {
@@ -299,11 +321,11 @@ func (d *Device) Type() (DeviceType, error) {
 // Info represents authenticatorGetInfo (0x04).
 // https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorGetInfo
 func (d *Device) Info() (*DeviceInfo, error) {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	isFIDO2 := bool(C.fido_dev_is_fido2(dev))
 	if !isFIDO2 {
@@ -424,11 +446,11 @@ func (d *Device) MakeCredential(
 		return nil, errors.Errorf("no user name specified")
 	}
 
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	cCred := C.fido_cred_new()
 	defer C.fido_cred_free(&cCred)
@@ -559,11 +581,11 @@ func credential(cCred *C.fido_cred_t) (*Credential, error) {
 
 // SetPIN ...
 func (d *Device) SetPIN(pin string, old string) error {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	if cErr := C.fido_dev_set_pin(dev, C.CString(pin), cStringOrNil(old)); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to set pin")
@@ -578,11 +600,11 @@ func (d *Device) SetPIN(pin string, old string) error {
 // seconds after power-up, and ErrActionTimeout if the user fails to confirm the reset by touching the key within 30
 // seconds.
 func (d *Device) Reset() error {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	if cErr := C.fido_dev_reset(dev); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to reset")
@@ -592,11 +614,11 @@ func (d *Device) Reset() error {
 
 // RetryCount ...
 func (d *Device) RetryCount() (int, error) {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return 0, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	var retryCount C.int
 	if cErr := C.fido_dev_get_retry_count(dev, &retryCount); cErr != C.FIDO_OK {
@@ -628,11 +650,11 @@ func (d *Device) Assertion(
 		return nil, errors.Errorf("no rpID specified")
 	}
 
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	cAssert := C.fido_assert_new()
 	defer C.fido_assert_free(&cAssert)
@@ -722,11 +744,11 @@ func (d *Device) CredentialsInfo(pin string) (*CredentialsInfo, error) {
 	if pin == "" {
 		return nil, errors.Errorf("pin is required")
 	}
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	cCredMeta := C.fido_credman_metadata_new()
 	defer C.fido_credman_metadata_free(&cCredMeta)
@@ -749,11 +771,11 @@ func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
 	if rpID == "" {
 		return nil, errors.Errorf("no rpID specified")
 	}
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	cRK := C.fido_credman_rk_new()
 	defer C.fido_credman_rk_free(&cRK)
@@ -777,11 +799,11 @@ func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
 
 // DeleteCredential deletes a resident credential (if credMgmt is supported).
 func (d *Device) DeleteCredential(credID []byte, pin string) error {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	if cErr := C.fido_credman_del_dev_rk(dev, cBytes(credID), cLen(credID), cStringOrNil(pin)); cErr != C.FIDO_OK {
 		return errors.Wrap(errFromCode(cErr), "failed to delete key")
@@ -791,11 +813,11 @@ func (d *Device) DeleteCredential(credID []byte, pin string) error {
 
 // RelyingParties ...
 func (d *Device) RelyingParties(pin string) ([]*RelyingParty, error) {
-	dev, err := open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
-	defer close(dev)
+	defer d.close(dev)
 
 	cRP := C.fido_credman_rp_new()
 	defer C.fido_credman_rp_free(&cRP)
@@ -957,6 +979,9 @@ var ErrOperationDenied = errors.New("operation denied")
 // ErrNotFIDO2 if device is not a FIDO2 device.
 var ErrNotFIDO2 = errors.Errorf("not a FIDO2 device")
 
+// ErrKeepaliveCancel if action was cancelled.
+var ErrKeepaliveCancel = errors.Errorf("keep alive cancel")
+
 // ErrOther if other error?
 var ErrOther = errors.Errorf("other error")
 
@@ -1006,6 +1031,8 @@ func errFromCode(code C.int) error {
 		return ErrRXInvalidCBOR
 	case C.FIDO_ERR_OPERATION_DENIED:
 		return ErrOperationDenied
+	case C.FIDO_ERR_KEEPALIVE_CANCEL:
+		return ErrKeepaliveCancel
 	case C.FIDO_ERR_ERR_OTHER:
 		return ErrOther
 	default:
