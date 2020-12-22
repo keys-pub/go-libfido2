@@ -236,9 +236,9 @@ func NewDevice(path string) (*Device, error) {
 	}, nil
 }
 
-func (d *Device) open(path string) (*C.fido_dev_t, error) {
+func (d *Device) open() (*C.fido_dev_t, error) {
 	dev := C.fido_dev_new()
-	if cErr := C.fido_dev_open(dev, C.CString(path)); cErr != C.FIDO_OK {
+	if cErr := C.fido_dev_open(dev, C.CString(d.path)); cErr != C.FIDO_OK {
 		return nil, errors.Wrap(errFromCode(cErr), "failed to open")
 	}
 	d.dev = dev
