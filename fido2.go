@@ -270,7 +270,7 @@ func (d *Device) Cancel() error {
 
 // CTAPHIDInfo ...
 func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +293,7 @@ func (d *Device) CTAPHIDInfo() (*HIDInfo, error) {
 
 // IsFIDO2 returns true if device supports FIDO2.
 func (d *Device) IsFIDO2() (bool, error) {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return false, err
 	}
@@ -305,7 +305,7 @@ func (d *Device) IsFIDO2() (bool, error) {
 
 // Type returns device type.
 func (d *Device) Type() (DeviceType, error) {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return UnknownDevice, err
 	}
@@ -321,7 +321,7 @@ func (d *Device) Type() (DeviceType, error) {
 // Info represents authenticatorGetInfo (0x04).
 // https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html#authenticatorGetInfo
 func (d *Device) Info() (*DeviceInfo, error) {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +446,7 @@ func (d *Device) MakeCredential(
 		return nil, errors.Errorf("no user name specified")
 	}
 
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
@@ -581,7 +581,7 @@ func credential(cCred *C.fido_cred_t) (*Credential, error) {
 
 // SetPIN ...
 func (d *Device) SetPIN(pin string, old string) error {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return err
 	}
@@ -600,7 +600,7 @@ func (d *Device) SetPIN(pin string, old string) error {
 // seconds after power-up, and ErrActionTimeout if the user fails to confirm the reset by touching the key within 30
 // seconds.
 func (d *Device) Reset() error {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return err
 	}
@@ -614,7 +614,7 @@ func (d *Device) Reset() error {
 
 // RetryCount ...
 func (d *Device) RetryCount() (int, error) {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return 0, err
 	}
@@ -650,7 +650,7 @@ func (d *Device) Assertion(
 		return nil, errors.Errorf("no rpID specified")
 	}
 
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
@@ -744,7 +744,7 @@ func (d *Device) CredentialsInfo(pin string) (*CredentialsInfo, error) {
 	if pin == "" {
 		return nil, errors.Errorf("pin is required")
 	}
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
@@ -771,7 +771,7 @@ func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
 	if rpID == "" {
 		return nil, errors.Errorf("no rpID specified")
 	}
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
@@ -799,7 +799,7 @@ func (d *Device) Credentials(rpID string, pin string) ([]*Credential, error) {
 
 // DeleteCredential deletes a resident credential (if credMgmt is supported).
 func (d *Device) DeleteCredential(credID []byte, pin string) error {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return err
 	}
@@ -813,7 +813,7 @@ func (d *Device) DeleteCredential(credID []byte, pin string) error {
 
 // RelyingParties ...
 func (d *Device) RelyingParties(pin string) ([]*RelyingParty, error) {
-	dev, err := d.open(d.path)
+	dev, err := d.open()
 	if err != nil {
 		return nil, err
 	}
