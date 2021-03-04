@@ -42,7 +42,6 @@ func ExampleDevice_Assertion() {
         pin,
         &libfido2.MakeCredentialOpts{
             Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
-            RK:         libfido2.True,
         },
     )
     if err != nil {
@@ -63,7 +62,6 @@ func ExampleDevice_Assertion() {
         pin,
         &libfido2.AssertionOpts{
             Extensions: []libfido2.Extension{libfido2.HMACSecretExtension},
-            UP:         libfido2.True,
             HMACSalt:   salt,
         },
     )
