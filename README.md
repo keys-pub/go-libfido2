@@ -120,8 +120,8 @@ scoop install libfido2
 
 #### macOS
 
-```
-export CFLAGS="-I/usr/local/include -I/usr/local/opt/openssl/include"
-export LDFLAGS="-L/usr/local/lib -L/usr/local/Cellar/openssl@1.1/1.1.1h/lib/"
+```shell
+export CFLAGS="-I/usr/local/include -I/usr/local/opt/openssl@1.1/include"
+export LDFLAGS="-L/usr/local/lib -L/usr/local/opt/openssl@1.1/lib/"
 (rm -rf build && mkdir build && cd build && cmake ..) && make -C build
 ```
