@@ -154,6 +154,8 @@ type Assertion struct {
 	AuthDataCBOR []byte
 	Sig          []byte
 	HMACSecret   []byte
+	CredentialID []byte
+	User         User
 }
 
 func extensionsInt(extensions []Extension) int {
@@ -716,9 +718,13 @@ func (d *Device) Assertion(
 	cSigPtr := C.fido_assert_sig_ptr(cAssert, cIdx)
 	sig := C.GoBytes(unsafe.Pointer(cSigPtr), C.int(cSigLen))
 
-	// cUserIDLen := C.fido_assert_user_id_len(cAssert, cIdx)
-	// cUserIDPtr := C.fido_assert_user_id_ptr(cAssert, cIdx)
-	// userID := C.GoBytes(unsafe.Pointer(cUserIDPtr), C.int(cUserIDLen))
+	cIDLen := C.fido_assert_id_len(cAssert, cIdx)
+	cIDPtr := C.fido_assert_id_ptr(cAssert, cIdx)
+	cID := C.GoBytes(unsafe.Pointer(cIDPtr), C.int(cIDLen))
+
+	cUserIDLen := C.fido_assert_user_id_len(cAssert, cIdx)
+	cUserIDPtr := C.fido_assert_user_id_ptr(cAssert, cIdx)
+	userID := C.GoBytes(unsafe.Pointer(cUserIDPtr), C.int(cUserIDLen))
 
 	// cUserName := C.fido_assert_user_name(cAssert, cIdx)
 	// cUserDisplayName := C.fido_assert_user_display_name(cAssert, cIdx)
@@ -728,12 +734,13 @@ func (d *Device) Assertion(
 		AuthDataCBOR: authDataCBOR,
 		HMACSecret:   hmacSecret,
 		Sig:          sig,
-		// User: User{
-		// 	ID:          userID,
-		// 	Name:        C.GoString(cUserName),
-		// 	DisplayName: C.GoString(cUserDisplayName),
-		// 	Icon:        C.GoString(cUserIcon),
-		// },
+		CredentialID: cID,
+		User: User{
+			ID: userID,
+			// 	Name:        C.GoString(cUserName),
+			// 	DisplayName: C.GoString(cUserDisplayName),
+			// 	Icon:        C.GoString(cUserIcon),
+		},
 	}
 
 	return assertion, nil
