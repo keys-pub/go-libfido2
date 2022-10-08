@@ -2,12 +2,14 @@ package libfido2
 
 /*
 #include <fido.h>
+#include <fido/bio.h>
 #include <fido/credman.h>
 #include <stdlib.h>
 */
 import "C"
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"unsafe"
@@ -840,6 +842,176 @@ func (d *Device) RelyingParties(pin string) ([]*RelyingParty, error) {
 	return rps, nil
 }
 
+func plural(n uint8) string {
+	plural := ""
+	if n > 1 {
+		plural = "s"
+	}
+	return plural
+}
+
+// BioEnrollment starts a bio-enabled device enrollment
+func (d *Device) BioEnroll(pin string) error {
+	dev, err := d.open()
+	if err != nil {
+		return err
+	}
+	defer d.close(dev)
+
+	template := C.fido_bio_template_new()
+	if template == nil {
+		return errors.New("bio template is empty")
+	}
+	defer C.fido_bio_template_free(&template)
+
+	enrollment := C.fido_bio_enroll_new()
+	if enrollment == nil {
+		return errors.New("enroll object is empty")
+	}
+	defer C.fido_bio_enroll_free(&enrollment)
+
+	if cErr := C.fido_bio_dev_enroll_begin(dev, template, enrollment, 10000, cStringOrNil(pin)); cErr != C.FIDO_OK {
+		return errors.Wrap(errFromCode(cErr), "failed to begin bio enrollment")
+	}
+
+	for C.fido_bio_enroll_remaining_samples(enrollment) > 0 {
+		remainingSamples := uint8(C.fido_bio_enroll_remaining_samples(enrollment))
+
+		fmt.Printf("Touch you security key (%d sample%s left)\n",
+			remainingSamples, plural(remainingSamples))
+
+		if cErr := C.fido_bio_dev_enroll_continue(dev, template, enrollment, 10000); cErr != C.FIDO_OK {
+			if err := d.Cancel(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+type BioTemplate struct {
+	ID   string
+	Name string
+}
+
+func goBioTemplate(tempalateArray *C.fido_bio_template_array_t, idx C.size_t) (*BioTemplate, error) {
+	template := C.fido_bio_template(tempalateArray, idx)
+	if template == nil {
+		return nil, errors.New("template is empty")
+	}
+
+	templateIdPtr := C.fido_bio_template_id_ptr(template)
+	templateIdLen := C.fido_bio_template_id_len(template)
+	templateName := C.GoString(C.fido_bio_template_name(template))
+
+	if templateIdPtr == nil {
+		return nil, errors.New("empty template id")
+	}
+	templateIdBuf := C.GoBytes(unsafe.Pointer(templateIdPtr), C.int(templateIdLen))
+	return &BioTemplate{
+		ID:   hex.EncodeToString(templateIdBuf),
+		Name: string(templateName),
+	}, nil
+}
+
+// BioList lists all bio templates.
+func (d *Device) BioList(pin string) ([]BioTemplate, error) {
+	dev, err := d.open()
+	if err != nil {
+		return nil, err
+	}
+	defer d.close(dev)
+
+	templateArray := C.fido_bio_template_array_new()
+	if templateArray == nil {
+		return nil, errors.New("empty template array")
+	}
+	defer C.fido_bio_template_array_free(&templateArray)
+
+	if cErr := C.fido_bio_dev_get_template_array(dev, templateArray, cStringOrNil(pin)); cErr != C.FIDO_OK {
+		return nil, errors.Wrap(errFromCode(cErr), "failed to retrieve template array")
+	}
+
+	var i C.size_t
+	var bioTemplates []BioTemplate
+	count := C.size_t(C.fido_bio_template_array_count(templateArray))
+
+	for i = 0; i < count; i++ {
+		bioTemplate, err := goBioTemplate(templateArray, i)
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to read bio template at index %d", i)
+		}
+		if bioTemplate == nil {
+			return nil, errors.New("empty bio template")
+		}
+		bioTemplates = append(bioTemplates, *bioTemplate)
+	}
+	return bioTemplates, nil
+}
+
+// BioDelete deletes a bio template.
+func (d *Device) BioDelete(pin, templateId string) error {
+	dev, err := d.open()
+	if err != nil {
+		return err
+	}
+	defer d.close(dev)
+
+	template := C.fido_bio_template_new()
+	if template == nil {
+		return errors.New("bio template is empty")
+	}
+	defer C.fido_bio_template_free(&template)
+
+	templateIdBuf, err := hex.DecodeString(templateId)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode string from base64")
+	}
+
+	if cErr := C.fido_bio_template_set_id(template, cBytes(templateIdBuf), cLen(templateIdBuf)); cErr != C.FIDO_OK {
+		return errors.Wrap(errFromCode(cErr), "failed to set template id")
+	}
+
+	if cErr := C.fido_bio_dev_enroll_remove(dev, template, cStringOrNil(pin)); cErr != C.FIDO_OK {
+		return errors.Wrap(errFromCode(cErr), "failed to remove template")
+	}
+	return nil
+}
+
+// BioSetTemplateName sets the name of template with templateId.
+func (d *Device) BioSetTemplateName(pin, templateId, name string) error {
+	dev, err := d.open()
+	if err != nil {
+		return err
+	}
+	defer d.close(dev)
+
+	template := C.fido_bio_template_new()
+	if template == nil {
+		return errors.New("bio template is empty")
+	}
+	defer C.fido_bio_template_free(&template)
+
+	templateIdBuf, err := hex.DecodeString(templateId)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode string from base64")
+	}
+
+	if cErr := C.fido_bio_template_set_id(template, cBytes(templateIdBuf), cLen(templateIdBuf)); cErr != C.FIDO_OK {
+		return errors.Wrap(errFromCode(cErr), "failed to set template id")
+	}
+
+	if cErr := C.fido_bio_template_set_name(template, cStringOrNil(name)); cErr != C.FIDO_OK {
+		return errors.Wrap(errFromCode(cErr), "failed to set template name")
+	}
+
+	if cErr := C.fido_bio_dev_set_template_name(dev, template, cStringOrNil(pin)); cErr != C.FIDO_OK {
+		return errors.Wrap(errFromCode(cErr), "failed to update template")
+	}
+	return nil
+}
+
 func goStrings(argc C.int, argv **C.char) []string {
 	length := int(argc)
 	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
@@ -982,6 +1154,9 @@ var ErrNotFIDO2 = errors.Errorf("not a FIDO2 device")
 // ErrKeepaliveCancel if action was cancelled.
 var ErrKeepaliveCancel = errors.Errorf("keep alive cancel")
 
+// ErrInvalidOption if option is invalid.
+var ErrInvalidOption = errors.Errorf("invalid option")
+
 // ErrOther if other error?
 var ErrOther = errors.Errorf("other error")
 
@@ -1033,6 +1208,8 @@ func errFromCode(code C.int) error {
 		return ErrOperationDenied
 	case C.FIDO_ERR_KEEPALIVE_CANCEL:
 		return ErrKeepaliveCancel
+	case C.FIDO_ERR_INVALID_OPTION:
+		return ErrInvalidOption
 	case C.FIDO_ERR_ERR_OTHER:
 		return ErrOther
 	default:
