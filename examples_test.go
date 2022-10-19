@@ -469,3 +469,146 @@ func ExampleDevice_DeleteCredential() {
 	// Output:
 	//
 }
+
+func ExampleDevice_BioEnrollment() {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
+		return
+	}
+	locs, err := libfido2.DeviceLocations()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(locs) == 0 {
+		log.Fatal("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", locs[0])
+	path := locs[0].Path
+	device, err := libfido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pin := "12345"
+
+	err = device.BioEnroll(pin)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Output:
+	//
+}
+
+func ExampleDevice_BioList() {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
+		return
+	}
+	locs, err := libfido2.DeviceLocations()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(locs) == 0 {
+		log.Fatal("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", locs[0])
+	path := locs[0].Path
+	device, err := libfido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pin := "12345"
+
+	templates, err := device.BioList(pin)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println(templates)
+
+	// Output:
+	//
+}
+
+func ExampleDevice_BioDelete() {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
+		return
+	}
+	locs, err := libfido2.DeviceLocations()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(locs) == 0 {
+		log.Fatal("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", locs[0])
+	path := locs[0].Path
+	device, err := libfido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pin := "12345"
+
+	templates, err := device.BioList(pin)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, template := range templates {
+		err := device.BioDelete(pin, template.ID)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// Output:
+	//
+}
+
+func ExampleDevice_BioSetTemplateName() {
+	if os.Getenv("FIDO2_EXAMPLES") != "1" {
+		return
+	}
+	locs, err := libfido2.DeviceLocations()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(locs) == 0 {
+		log.Fatal("No devices")
+		return
+	}
+
+	log.Printf("Using device: %+v\n", locs[0])
+	path := locs[0].Path
+	device, err := libfido2.NewDevice(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pin := "12345"
+
+	templates, err := device.BioList(pin)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(templates) == 0 {
+		log.Fatal("no bio template")
+		return
+	}
+
+	template := templates[0]
+	newName := "newName"
+
+	device.BioSetTemplateName(pin, template.ID, newName)
+
+	// Output:
+	//
+}
