@@ -89,6 +89,7 @@ To run an example, set FIDO2_EXAMPLES=1.
 FIDO2_EXAMPLES=1 go test -v -run ExampleDeviceLocations
 FIDO2_EXAMPLES=1 go test -v -run ExampleDevice_Assertion
 FIDO2_EXAMPLES=1 go test -v -run ExampleDevice_Credentials
+FIDO2_EXAMPLES=1 go test -v -run ExampleDevice_BioList
 ```
 
 ## Dependencies
@@ -105,7 +106,7 @@ sudo apt install libfido2-dev
 ### macOS
 
 ```shell
-brew install keys-pub/tap/libfido2
+brew install libfido2
 ```
 
 ### Windows
