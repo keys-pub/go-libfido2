@@ -20,7 +20,7 @@ jobs:
           brew install keys-pub/tap/libfido2
       - name: Install scoop (windows)        
         if: matrix.os == 'windows-latest'
-        uses: MinoruSekine/setup-scoop@v1
+        uses: MinoruSekine/setup-scoop@main
       - name: Install dependencies (windows)        
         if: matrix.os == 'windows-latest'
         run: |
