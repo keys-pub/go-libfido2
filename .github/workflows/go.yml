@@ -13,9 +13,9 @@ jobs:
           sudo apt update
           sudo apt install libfido2-dev
       - name: Install dependencies (macos)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' || matrix.os == 'macos-13'
         run: |
-          brew install libfido2 openssl@3
+          brew install libfido2
       - name: Install scoop (windows)        
         if: matrix.os == 'windows-latest'
         uses: MinoruSekine/setup-scoop@main
