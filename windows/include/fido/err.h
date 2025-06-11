@@ -1,13 +1,35 @@
 /*
  * Copyright (c) 2018 Yubico AB. All rights reserved.
- * Use of this source code is governed by a BSD-style
- * license that can be found in the LICENSE file.
+ * SPDX-License-Identifier: BSD-2-Clause
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ * 
+ *    1. Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *    2. Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in
+ *       the documentation and/or other materials provided with the
+ *       distribution.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef _FIDO_ERR_H
 #define _FIDO_ERR_H
 
-#define	FIDO_ERR_SUCCESS		0x00
+#define FIDO_ERR_SUCCESS		0x00
 #define FIDO_ERR_INVALID_COMMAND	0x01
 #define FIDO_ERR_INVALID_PARAMETER	0x02
 #define FIDO_ERR_INVALID_LENGTH		0x03
@@ -21,6 +43,8 @@
 #define FIDO_ERR_MISSING_PARAMETER	0x14
 #define FIDO_ERR_LIMIT_EXCEEDED		0x15
 #define FIDO_ERR_UNSUPPORTED_EXTENSION	0x16
+#define FIDO_ERR_FP_DATABASE_FULL	0x17
+#define FIDO_ERR_LARGEBLOB_STORAGE_FULL	0x18
 #define FIDO_ERR_CREDENTIAL_EXCLUDED	0x19
 #define FIDO_ERR_PROCESSING		0x21
 #define FIDO_ERR_INVALID_CREDENTIAL	0x22
@@ -50,6 +74,8 @@
 #define FIDO_ERR_ACTION_TIMEOUT		0x3a
 #define FIDO_ERR_UP_REQUIRED		0x3b
 #define FIDO_ERR_UV_BLOCKED		0x3c
+#define FIDO_ERR_UV_INVALID		0x3f
+#define FIDO_ERR_UNAUTHORIZED_PERM	0x40
 #define FIDO_ERR_ERR_OTHER		0x7f
 #define FIDO_ERR_SPEC_LAST		0xdf
 
@@ -64,6 +90,8 @@
 #define FIDO_ERR_INVALID_ARGUMENT	-7
 #define FIDO_ERR_USER_PRESENCE_REQUIRED	-8
 #define FIDO_ERR_INTERNAL		-9
+#define FIDO_ERR_NOTFOUND		-10
+#define FIDO_ERR_COMPRESS		-11
 
 #ifdef __cplusplus
 extern "C" {
