@@ -8,6 +8,7 @@ package libfido2
 */
 import "C"
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -927,6 +928,64 @@ func (d *Device) RelyingParties(pin string) ([]*RelyingParty, error) {
 		})
 	}
 	return rps, nil
+}
+
+func (d *Device) PublicKey(rp *RelyingParty, credential []byte, pin string) ([]byte, error) {
+	// Open device
+	dev, err := d.open()
+	if err != nil {
+		return nil, err
+	}
+	defer d.close(dev)
+
+	// Prepare credman call
+	cRpID := C.CString(rp.ID)
+	defer C.free(unsafe.Pointer(cRpID))
+
+	// Setup PIN
+	cpin := C.CString(pin)
+	defer C.free(unsafe.Pointer(cpin))
+
+	// Allocate container for resident keys
+	rk := C.fido_credman_rk_new()
+	if rk == nil {
+		return nil, fmt.Errorf("fido_credman_rk_new failed")
+	}
+	defer C.fido_credman_rk_free(&rk)
+
+	// Fetch resident credentials for this RP from the device
+	if rc := C.fido_credman_get_dev_rk(dev, cRpID, rk, cpin); rc != C.FIDO_OK {
+		return nil, fmt.Errorf("credman get rk failed: rc=%d", int(rc))
+	}
+
+	n := int(C.fido_credman_rk_count(rk))
+	for i := 0; i < n; i++ {
+		c := C.fido_credman_rk(rk, C.size_t(i))
+		if c == nil {
+			continue
+		}
+
+		idPtr := C.fido_cred_id_ptr(c)
+		idLen := C.fido_cred_id_len(c)
+		if idPtr == nil || idLen == 0 {
+			continue
+		}
+		gotID := C.GoBytes(unsafe.Pointer(idPtr), C.int(idLen))
+		if !bytes.Equal(gotID, credential) {
+			continue
+		}
+
+		// Found the credential — extract its COSE public key
+		pubPtr := C.fido_cred_pubkey_ptr(c)
+		pubLen := C.fido_cred_pubkey_len(c)
+		if pubPtr == nil || pubLen == 0 {
+			return nil, fmt.Errorf("matched credential but no public key present")
+		}
+		pubKey := C.GoBytes(unsafe.Pointer(pubPtr), C.int(pubLen))
+		return pubKey, nil
+	}
+
+	return nil, fmt.Errorf("credential id not found among resident keys for rpID=%q", rp.ID)
 }
 
 func plural(n uint8) string {
