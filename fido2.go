@@ -1160,7 +1160,7 @@ func (d *Device) BioSetTemplateName(pin, templateId, name string) error {
 
 func goStrings(argc C.int, argv **C.char) []string {
 	length := int(argc)
-	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
+	tmpslice := (*[1 << 28]*C.char)(unsafe.Pointer(argv))[:length:length]
 	gostrings := make([]string, length)
 	for i, s := range tmpslice {
 		gostrings[i] = C.GoString(s)
